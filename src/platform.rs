@@ -41,13 +41,23 @@ impl MouseSystem for WindowsMouse {
     }
     fn write(&mut self, p: Parameters) -> Result<(), String> {
         if !p.valid() {
-            return Err("鼠标参数超出允许范围".into());
+            return Err(crate::i18n::text!(
+                "鼠标参数超出允许范围",
+                "Mouse settings are outside the allowed range"
+            )
+            .into());
         }
         let old = self.read()?;
         if let Err(e) = set_parameters(p) {
             return Err(match set_parameters(old) {
-                Ok(()) => format!("应用失败，已恢复原参数：{e}"),
-                Err(rollback) => format!("应用失败：{e}；恢复失败：{rollback}"),
+                Ok(()) => crate::i18n::localized_format!(
+                    "应用失败，已恢复原参数：{e}",
+                    "Apply failed; previous settings restored: {e}"
+                ),
+                Err(rollback) => crate::i18n::localized_format!(
+                    "应用失败：{e}；恢复失败：{rollback}",
+                    "Apply failed: {e}; restore failed: {rollback}"
+                ),
             });
         }
         Ok(())
@@ -71,7 +81,11 @@ fn set_parameters(mut p: Parameters) -> Result<(), String> {
         )
         .map_err(|e| e.to_string())?;
         if WindowsMouse.read()? != p {
-            return Err("系统未保留请求的鼠标参数".into());
+            return Err(crate::i18n::text!(
+                "系统未保留请求的鼠标参数",
+                "Windows did not retain the requested mouse settings"
+            )
+            .into());
         }
         Ok(())
     }
@@ -83,7 +97,9 @@ pub fn enumerate() -> Result<Vec<(usize, Identity)>, String> {
         if GetRawInputDeviceList(None, &mut count, size_of::<RAWINPUTDEVICELIST>() as u32)
             == u32::MAX
         {
-            return Err("无法枚举输入设备".into());
+            return Err(
+                crate::i18n::text!("无法枚举输入设备", "Cannot enumerate input devices").into(),
+            );
         }
         // The list may grow between calls; retry without accepting a partial list.
         for _ in 0..3 {
@@ -103,7 +119,11 @@ pub fn enumerate() -> Result<Vec<(usize, Identity)>, String> {
                 .filter_map(|d| identity(d.hDevice).map(|i| (d.hDevice.0 as usize, i)))
                 .collect());
         }
-        Err("设备列表持续变化，请稍后重试".into())
+        Err(crate::i18n::text!(
+            "设备列表持续变化，请稍后重试",
+            "The device list keeps changing. Try again shortly."
+        )
+        .into())
     }
 }
 
@@ -207,7 +227,7 @@ pub fn identity(handle: HANDLE) -> Option<Identity> {
         }
         let mut name = node_string(node, &DEVPKEY_Device_FriendlyName)
             .or_else(|| node_string(node, &DEVPKEY_Device_DeviceDesc))
-            .unwrap_or_else(|| "HID 鼠标".into());
+            .unwrap_or_else(|| crate::i18n::text!("HID 鼠标", "HID mouse").into());
         let container = node_property(node, &DEVPKEY_Device_ContainerId).and_then(|(ty, bytes)| {
             if ty != DEVPROP_TYPE_GUID || bytes.len() != size_of::<GUID>() {
                 return None;

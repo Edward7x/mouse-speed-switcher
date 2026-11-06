@@ -4,52 +4,89 @@ use std::result::Result::Ok;
 
 pub fn label(id: u16, paused: bool) -> &'static str {
     match id {
-        OPEN => "打开设置",
-        PAUSE if paused => "恢复自动切换",
-        PAUSE => "暂停自动切换",
-        STARTUP => "开机自启",
-        EXIT => "退出",
+        OPEN => crate::i18n::text!("打开设置", "Open settings"),
+        PAUSE if paused => crate::i18n::text!("恢复自动切换", "Resume switching"),
+        PAUSE => crate::i18n::text!("暂停自动切换", "Pause switching"),
+        STARTUP => crate::i18n::text!("开机自启", "Run at startup"),
+        LANGUAGE => crate::i18n::text!("语言", "Language"),
+        LANGUAGE_ZH => crate::i18n::text!("中文", "Chinese"),
+        LANGUAGE_EN => crate::i18n::text!("英文", "English"),
+        EXIT => crate::i18n::text!("退出", "Exit"),
         _ => "",
     }
+}
+
+unsafe fn append_item(
+    menu: HMENU,
+    id: u16,
+    state: &theme::PaintState,
+) -> windows::core::Result<()> {
+    let text = wide(label(id, state.paused));
+    AppendMenuW(menu, MF_STRING, id as usize, PCWSTR(text.as_ptr()))?;
+    SetMenuItemInfoW(
+        menu,
+        id as u32,
+        false,
+        &MENUITEMINFOW {
+            cbSize: size_of::<MENUITEMINFOW>() as u32,
+            fMask: MIIM_FTYPE | MIIM_DATA | MIIM_STATE,
+            fType: MFT_OWNERDRAW,
+            dwItemData: id as usize,
+            fState: if (id == STARTUP && state.autostart)
+                || (id == LANGUAGE_ZH && !crate::i18n::english())
+                || (id == LANGUAGE_EN && crate::i18n::english())
+            {
+                MFS_CHECKED
+            } else {
+                MFS_UNCHECKED
+            },
+            ..Default::default()
+        },
+    )
 }
 
 pub unsafe fn create_menu(state: &theme::PaintState) -> Result<HMENU, String> {
     let menu = CreatePopupMenu().map_err(|e| e.to_string())?;
     let result = (|| -> windows::core::Result<()> {
+        for id in [OPEN, PAUSE, STARTUP] {
+            append_item(menu, id, state)?;
+        }
+        let languages = CreatePopupMenu()?;
+        let text = wide(label(LANGUAGE, state.paused));
+        // Attach first so destroying the root also cleans up the submenu on failure.
+        if let Err(error) = AppendMenuW(menu, MF_POPUP, languages.0 as usize, PCWSTR(text.as_ptr()))
+        {
+            let _ = DestroyMenu(languages);
+            return Err(error);
+        }
+        SetMenuItemInfoW(
+            menu,
+            3,
+            true,
+            &MENUITEMINFOW {
+                cbSize: size_of::<MENUITEMINFOW>() as u32,
+                fMask: MIIM_ID | MIIM_FTYPE | MIIM_DATA,
+                wID: LANGUAGE as u32,
+                fType: MFT_OWNERDRAW,
+                dwItemData: LANGUAGE as usize,
+                ..Default::default()
+            },
+        )?;
+        for id in [LANGUAGE_ZH, LANGUAGE_EN] {
+            append_item(languages, id, state)?;
+        }
+        AppendMenuW(menu, MF_SEPARATOR, 0, None)?;
+        append_item(menu, EXIT, state)?;
         SetMenuInfo(
             menu,
             &MENUINFO {
                 cbSize: size_of::<MENUINFO>() as u32,
-                fMask: MIM_BACKGROUND | MIM_STYLE,
+                fMask: MIM_BACKGROUND | MIM_STYLE | MIM_APPLYTOSUBMENUS,
                 hbrBack: state.white,
                 dwStyle: MNS_NOCHECK,
                 ..Default::default()
             },
         )?;
-        for id in [OPEN, PAUSE, STARTUP, EXIT] {
-            if id == EXIT {
-                AppendMenuW(menu, MF_SEPARATOR, 0, None)?;
-            }
-            let text = wide(label(id, state.paused));
-            AppendMenuW(menu, MF_STRING, id as usize, PCWSTR(text.as_ptr()))?;
-            SetMenuItemInfoW(
-                menu,
-                id as u32,
-                false,
-                &MENUITEMINFOW {
-                    cbSize: size_of::<MENUITEMINFOW>() as u32,
-                    fMask: MIIM_FTYPE | MIIM_DATA | MIIM_STATE,
-                    fType: MFT_OWNERDRAW,
-                    dwItemData: id as usize,
-                    fState: if id == STARTUP && state.autostart {
-                        MFS_CHECKED
-                    } else {
-                        MFS_UNCHECKED
-                    },
-                    ..Default::default()
-                },
-            )?;
-        }
         Ok(())
     })();
     if let Err(error) = result {
@@ -77,9 +114,12 @@ pub unsafe fn draw(state: &theme::PaintState, item: &DRAWITEMSTRUCT) {
     let id = item.itemID as u16;
     let glyph = match id {
         OPEN => "\u{e713}",
+        LANGUAGE => "\u{e774}",
         PAUSE if state.paused => "\u{e768}",
         PAUSE => "\u{e769}",
         STARTUP if state.autostart => "\u{e73e}",
+        LANGUAGE_ZH if !crate::i18n::english() => "\u{e73e}",
+        LANGUAGE_EN if crate::i18n::english() => "\u{e73e}",
         EXIT => "\u{e8ac}",
         _ => "",
     };

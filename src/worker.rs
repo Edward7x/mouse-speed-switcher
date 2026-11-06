@@ -95,7 +95,15 @@ impl Background {
         self.send(Command::Shutdown);
         self.thread
             .take()
-            .map(|t| t.join().unwrap_or_else(|_| Err("监听线程异常退出".into())))
+            .map(|t| {
+                t.join().unwrap_or_else(|_| {
+                    Err(crate::i18n::text!(
+                        "监听线程异常退出",
+                        "Input monitoring thread terminated unexpectedly"
+                    )
+                    .into())
+                })
+            })
             .unwrap_or(Ok(()))
     }
 }
@@ -138,11 +146,14 @@ impl Worker {
         match storage::save(&self.path, &config) {
             Ok(()) => {
                 self.config = config;
-                self.notice = "配置已保存".into();
+                self.notice = crate::i18n::text!("配置已保存", "Profile saved").into();
                 true
             }
             Err(e) => {
-                self.error = Some(format!("保存失败：{e}"));
+                self.error = Some(crate::i18n::localized_format!(
+                    "保存失败：{e}",
+                    "Save failed: {e}"
+                ));
                 false
             }
         }
@@ -156,7 +167,10 @@ impl Worker {
                     changed |= self.config.discover(d, self.engine.initial).1;
                 }
                 if changed && let Err(e) = storage::save(&self.path, &self.config) {
-                    self.error = Some(format!("新设备配置尚未保存：{e}"));
+                    self.error = Some(crate::i18n::localized_format!(
+                        "新设备配置尚未保存：{e}",
+                        "New device profile has not been saved: {e}"
+                    ));
                 }
             }
             Err(e) => self.error = Some(e),
@@ -210,7 +224,13 @@ impl Worker {
             } => {
                 let alias = alias.trim();
                 if alias.is_empty() || !parameters.valid() {
-                    self.error = Some("请输入名称和有效的鼠标参数".into());
+                    self.error = Some(
+                        crate::i18n::text!(
+                            "请输入名称和有效的鼠标参数",
+                            "Enter a name and valid mouse settings"
+                        )
+                        .into(),
+                    );
                 } else {
                     let mut next = self.config.clone();
                     if let Some(p) = next.profiles.get_mut(&id) {
@@ -235,7 +255,13 @@ impl Worker {
                 {
                     self.activate(h, true);
                 } else {
-                    self.error = Some("此配置没有已连接的鼠标；请先关联设备".into());
+                    self.error = Some(
+                        crate::i18n::text!(
+                            "此配置没有已连接的鼠标；请先关联设备",
+                            "No connected mouse uses this profile. Link a device first."
+                        )
+                        .into(),
+                    );
                 }
             }
             Command::Bind { device, profile } => {
@@ -348,7 +374,11 @@ unsafe fn run(
                 ..Default::default()
             };
             if RegisterClassW(&class) == 0 {
-                return Err("无法注册输入监听窗口".into());
+                return Err(crate::i18n::text!(
+                    "无法注册输入监听窗口",
+                    "Cannot register the input monitoring window"
+                )
+                .into());
             }
             let hwnd = CreateWindowExW(
                 WINDOW_EX_STYLE(0),
@@ -423,7 +453,13 @@ unsafe fn run(
         let result = GetMessageW(&mut msg, None, 0, 0).0;
         if result <= 0 {
             if result < 0 {
-                worker.stop_error = Some("输入监听消息循环失败".into());
+                worker.stop_error = Some(
+                    crate::i18n::text!(
+                        "输入监听消息循环失败",
+                        "Input monitoring message loop failed"
+                    )
+                    .into(),
+                );
                 let _ = worker.engine.restore();
             }
             break;

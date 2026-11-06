@@ -72,21 +72,33 @@ impl Default for Config {
 impl Config {
     pub fn validate(&self) -> Result<(), String> {
         if self.version != 1 {
-            return Err("不支持的配置版本".into());
+            return Err(crate::i18n::text!(
+                "不支持的配置版本",
+                "Unsupported configuration version"
+            )
+            .into());
         }
         if self
             .profiles
             .values()
             .any(|p| !p.parameters.valid() || p.alias.trim().is_empty())
         {
-            return Err("配置中有无效的速度、名称或加速参数".into());
+            return Err(crate::i18n::text!(
+                "配置中有无效的速度、名称或加速参数",
+                "Configuration contains invalid speed, name or acceleration values"
+            )
+            .into());
         }
         if self
             .bindings
             .values()
             .any(|id| !self.profiles.contains_key(id))
         {
-            return Err("设备关联指向不存在的配置".into());
+            return Err(crate::i18n::text!(
+                "设备关联指向不存在的配置",
+                "A device link refers to a missing profile"
+            )
+            .into());
         }
         Ok(())
     }

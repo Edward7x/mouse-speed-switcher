@@ -200,7 +200,7 @@ pub unsafe fn paint_message(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) ->
             if item.CtlType != ODT_MENU {
                 return None;
             }
-            item.itemWidth = state.px(150) as u32;
+            item.itemWidth = state.px(if crate::i18n::english() { 230 } else { 150 }) as u32;
             item.itemHeight = state.px(34) as u32;
             Some(LRESULT(1))
         }
@@ -818,7 +818,7 @@ pub unsafe fn list(app: &PaintState, item: &DRAWITEMSTRUCT) {
         );
         text(
             item.hDC,
-            "历史鼠标",
+            crate::i18n::text!("历史鼠标", "Saved mice"),
             RECT {
                 left: rect.left + p(12),
                 right: rect.right - p(12),
@@ -859,7 +859,11 @@ pub unsafe fn list(app: &PaintState, item: &DRAWITEMSTRUCT) {
     rect.bottom = rect.top + p(29);
     text(
         item.hDC,
-        if online { "已连接" } else { "未连接" },
+        if online {
+            crate::i18n::text!("已连接", "Connected")
+        } else {
+            crate::i18n::text!("未连接", "Disconnected")
+        },
         status_rect,
         app.small,
         MUTED,
@@ -948,7 +952,7 @@ pub unsafe fn combo_field(app: &PaintState, hwnd: HWND, dc: HDC, rect: RECT) {
         .ok()
         .and_then(|i| app.devices.get(i))
         .map(|(_, s)| s.as_str())
-        .unwrap_or("暂无已连接设备");
+        .unwrap_or(crate::i18n::text!("暂无已连接设备", "No connected devices"));
     let name = label.split(" [").next().unwrap_or(label);
     text(
         dc,

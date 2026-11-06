@@ -42,6 +42,9 @@ const CONNECTED: u16 = 115;
 const SUBTITLE: u16 = 116;
 const RUNNING: u16 = 117;
 const PANE: u16 = 118;
+const LANGUAGE: u16 = 119;
+const LANGUAGE_ZH: u16 = 120;
+const LANGUAGE_EN: u16 = 121;
 const FOCUS_VISIBLE: u32 = WM_APP + 22;
 const REPAINT: u32 = WM_APP + 23;
 
@@ -131,6 +134,7 @@ struct App {
     thumb_tracking: bool,
     last_track: Option<i32>,
     scroll_extent: Option<(i32, u32)>,
+    localized: Vec<(HWND, &'static str, &'static str)>,
     content: Vec<(HWND, i32, i32, i32, i32)>,
     render_signature: String,
     background: Option<Background>,
@@ -159,6 +163,7 @@ impl App {
         let px = |v: i32| (v as f32 * scale).round() as i32;
         let theme = theme::Theme::new(scale);
         let font = theme.normal;
+        let localized = RefCell::new(Vec::new());
         let create = |parent: HWND,
                       class: PCWSTR,
                       text: &str,
@@ -170,11 +175,11 @@ impl App {
                       height,
                       f: HFONT|
          -> Result<HWND, String> {
-            let text = wide(text);
+            let encoded = wide(text);
             let child = CreateWindowExW(
                 WINDOW_EX_STYLE(0),
                 class,
-                PCWSTR(text.as_ptr()),
+                PCWSTR(encoded.as_ptr()),
                 WS_CHILD | WS_VISIBLE | WINDOW_STYLE(style),
                 px(x),
                 px(y),
@@ -186,6 +191,69 @@ impl App {
                 None,
             )
             .map_err(|e| e.to_string())?;
+            let pair = match text {
+                "我的鼠标" | "My mice" => Some(("我的鼠标", "My mice")),
+                "正在初始化…" | "Initializing…" => Some(("正在初始化…", "Initializing…")),
+                "鼠标配置" | "Mouse profiles" => Some(("鼠标配置", "Mouse profiles")),
+                "正在识别设备…" | "Detecting devices…" => {
+                    Some(("正在识别设备…", "Detecting devices…"))
+                }
+                "指针设置" | "Pointer settings" => Some(("指针设置", "Pointer settings")),
+                "指针速度" | "Pointer speed" => Some(("指针速度", "Pointer speed")),
+                "慢" | "Slow" => Some(("慢", "Slow")),
+                "快" | "Fast" => Some(("快", "Fast")),
+                "提高指针精确度" | "Enhance pointer precision" => {
+                    Some(("提高指针精确度", "Enhance pointer precision"))
+                }
+                "根据移动速度调整指针响应" | "Adjust pointer response to movement speed" => {
+                    Some((
+                        "根据移动速度调整指针响应",
+                        "Adjust pointer response to movement speed",
+                    ))
+                }
+                "配置名称" | "Profile name" => Some(("配置名称", "Profile name")),
+                "设备关联  ›" | "Link device  ›" => Some(("设备关联  ›", "Link device  ›")),
+                "更换端口后，可将已连接设备关联到选中配置。"
+                | "After changing ports, link a connected device to this profile." => Some((
+                    "更换端口后，可将已连接设备关联到选中配置。",
+                    "After changing ports, link a connected device to this profile.",
+                )),
+                "关联到选中配置" | "Link to profile" => {
+                    Some(("关联到选中配置", "Link to profile"))
+                }
+                "设备详情  ›" | "Device details  ›" => {
+                    Some(("设备详情  ›", "Device details  ›"))
+                }
+                "选择配置后开始编辑" | "Select a profile to edit" => {
+                    Some(("选择配置后开始编辑", "Select a profile to edit"))
+                }
+                "应用已保存配置" | "Apply saved profile" => {
+                    Some(("应用已保存配置", "Apply saved profile"))
+                }
+                "保存配置" | "Save profile" => Some(("保存配置", "Save profile")),
+                "应用已保存配置不会保存当前修改"
+                | "Apply uses saved values; edits are not saved" => Some((
+                    "应用已保存配置不会保存当前修改",
+                    "Apply uses saved values; edits are not saved",
+                )),
+                "正在初始化设备…" | "Initializing devices…" => {
+                    Some(("正在初始化设备…", "Initializing devices…"))
+                }
+                "暂停自动切换" | "Pause switching" => {
+                    Some(("暂停自动切换", "Pause switching"))
+                }
+                "开机自启" | "Run at startup" => Some(("开机自启", "Run at startup")),
+                "关闭窗口后仍在托盘运行" | "Keeps running in the tray when closed" => {
+                    Some((
+                        "关闭窗口后仍在托盘运行",
+                        "Keeps running in the tray when closed",
+                    ))
+                }
+                _ => None,
+            };
+            if let Some((zh, en)) = pair {
+                localized.borrow_mut().push((child, zh, en));
+            }
             send(child, WM_SETFONT, f.0 as usize, 1);
             let kind = if id == SUBTITLE {
                 6
@@ -206,7 +274,7 @@ impl App {
         create(
             hwnd,
             w!("STATIC"),
-            "我的鼠标",
+            crate::i18n::text!("我的鼠标", "My mice"),
             0,
             0,
             22,
@@ -235,7 +303,7 @@ impl App {
         let running = create(
             hwnd,
             w!("STATIC"),
-            "正在初始化…",
+            crate::i18n::text!("正在初始化…", "Initializing…"),
             0,
             RUNNING,
             22,
@@ -266,7 +334,7 @@ impl App {
         };
         let title = field(
             w!("STATIC"),
-            "鼠标配置",
+            crate::i18n::text!("鼠标配置", "Mouse profiles"),
             0x4000,
             0,
             30,
@@ -277,7 +345,7 @@ impl App {
         )?;
         let subtitle = field(
             w!("STATIC"),
-            "正在识别设备…",
+            crate::i18n::text!("正在识别设备…", "Detecting devices…"),
             0,
             SUBTITLE,
             30,
@@ -288,7 +356,7 @@ impl App {
         )?;
         field(
             w!("STATIC"),
-            "指针设置",
+            crate::i18n::text!("指针设置", "Pointer settings"),
             0,
             0,
             30,
@@ -308,7 +376,17 @@ impl App {
             28,
             theme.heading,
         )?;
-        field(w!("STATIC"), "指针速度", 0, 0, 30, 182, 300, 28, font)?;
+        field(
+            w!("STATIC"),
+            crate::i18n::text!("指针速度", "Pointer speed"),
+            0,
+            0,
+            30,
+            182,
+            300,
+            28,
+            font,
+        )?;
         let speed = field(
             TRACKBAR_CLASSW,
             "",
@@ -323,11 +401,31 @@ impl App {
         send(speed, TBM_SETRANGE, 1, 1 | (20 << 16));
         send(speed, TBM_SETPOS, 1, 10);
         let _ = SetWindowSubclass(speed, Some(theme::control_proc), 1, 1);
-        field(w!("STATIC"), "慢", 0, 0, 36, 256, 30, 22, theme.small)?;
-        field(w!("STATIC"), "快", 2, 0, 606, 256, 30, 22, theme.small)?;
+        field(
+            w!("STATIC"),
+            crate::i18n::text!("慢", "Slow"),
+            0,
+            0,
+            36,
+            256,
+            30,
+            22,
+            theme.small,
+        )?;
+        field(
+            w!("STATIC"),
+            crate::i18n::text!("快", "Fast"),
+            2,
+            0,
+            606,
+            256,
+            30,
+            22,
+            theme.small,
+        )?;
         let precision = field(
             w!("BUTTON"),
-            "提高指针精确度",
+            crate::i18n::text!("提高指针精确度", "Enhance pointer precision"),
             WS_TABSTOP.0 | BS_AUTOCHECKBOX as u32,
             PRECISION,
             30,
@@ -338,7 +436,10 @@ impl App {
         )?;
         field(
             w!("STATIC"),
-            "根据移动速度调整指针响应",
+            crate::i18n::text!(
+                "根据移动速度调整指针响应",
+                "Adjust pointer response to movement speed"
+            ),
             0,
             0,
             30,
@@ -347,7 +448,17 @@ impl App {
             24,
             theme.small,
         )?;
-        field(w!("STATIC"), "配置名称", 0, 0, 30, 376, 606, 26, font)?;
+        field(
+            w!("STATIC"),
+            crate::i18n::text!("配置名称", "Profile name"),
+            0,
+            0,
+            30,
+            376,
+            606,
+            26,
+            font,
+        )?;
         let edit_frame = field(
             w!("STATIC"),
             "",
@@ -381,7 +492,7 @@ impl App {
         let association = create(
             pane,
             w!("BUTTON"),
-            "设备关联  ›",
+            crate::i18n::text!("设备关联  ›", "Link device  ›"),
             WS_TABSTOP.0 | BS_OWNERDRAW as u32,
             ASSOCIATION,
             30,
@@ -393,7 +504,10 @@ impl App {
         let association_help = create(
             pane,
             w!("STATIC"),
-            "更换端口后，可将已连接设备关联到选中配置。",
+            crate::i18n::text!(
+                "更换端口后，可将已连接设备关联到选中配置。",
+                "After changing ports, link a connected device to this profile."
+            ),
             0,
             0,
             30,
@@ -424,7 +538,7 @@ impl App {
         let bind = create(
             pane,
             w!("BUTTON"),
-            "关联到选中配置",
+            crate::i18n::text!("关联到选中配置", "Link to profile"),
             WS_TABSTOP.0 | BS_OWNERDRAW as u32,
             BIND,
             434,
@@ -436,7 +550,7 @@ impl App {
         let detail_toggle = create(
             pane,
             w!("BUTTON"),
-            "设备详情  ›",
+            crate::i18n::text!("设备详情  ›", "Device details  ›"),
             WS_TABSTOP.0 | BS_OWNERDRAW as u32,
             DETAILS,
             30,
@@ -467,7 +581,7 @@ impl App {
         let saved = create(
             hwnd,
             w!("STATIC"),
-            "选择配置后开始编辑",
+            crate::i18n::text!("选择配置后开始编辑", "Select a profile to edit"),
             0,
             0,
             300,
@@ -479,7 +593,7 @@ impl App {
         let apply = create(
             hwnd,
             w!("BUTTON"),
-            "应用已保存配置",
+            crate::i18n::text!("应用已保存配置", "Apply saved profile"),
             WS_TABSTOP.0 | BS_OWNERDRAW as u32,
             APPLY,
             560,
@@ -491,7 +605,7 @@ impl App {
         let save = create(
             hwnd,
             w!("BUTTON"),
-            "保存配置",
+            crate::i18n::text!("保存配置", "Save profile"),
             WS_TABSTOP.0 | BS_OWNERDRAW as u32,
             SAVE,
             766,
@@ -503,7 +617,10 @@ impl App {
         create(
             hwnd,
             w!("STATIC"),
-            "应用已保存配置不会保存当前修改",
+            crate::i18n::text!(
+                "应用已保存配置不会保存当前修改",
+                "Apply uses saved values; edits are not saved"
+            ),
             0,
             0,
             560,
@@ -515,7 +632,7 @@ impl App {
         let status = create(
             hwnd,
             w!("EDIT"),
-            "正在初始化设备…",
+            crate::i18n::text!("正在初始化设备…", "Initializing devices…"),
             ES_MULTILINE as u32 | ES_READONLY as u32 | ES_AUTOVSCROLL as u32 | WS_VSCROLL.0,
             0,
             300,
@@ -527,7 +644,7 @@ impl App {
         let pause = create(
             hwnd,
             w!("BUTTON"),
-            "暂停自动切换",
+            crate::i18n::text!("暂停自动切换", "Pause switching"),
             WS_TABSTOP.0 | BS_OWNERDRAW as u32,
             PAUSE,
             300,
@@ -536,10 +653,22 @@ impl App {
             30,
             font,
         )?;
+        create(
+            hwnd,
+            w!("BUTTON"),
+            "中文 / English",
+            WS_TABSTOP.0 | BS_OWNERDRAW as u32,
+            LANGUAGE,
+            480,
+            675,
+            200,
+            30,
+            font,
+        )?;
         let startup = create(
             hwnd,
             w!("BUTTON"),
-            "开机自启",
+            crate::i18n::text!("开机自启", "Run at startup"),
             WS_TABSTOP.0 | BS_AUTOCHECKBOX as u32,
             STARTUP,
             758,
@@ -551,7 +680,10 @@ impl App {
         create(
             hwnd,
             w!("STATIC"),
-            "关闭窗口后仍在托盘运行",
+            crate::i18n::text!(
+                "关闭窗口后仍在托盘运行",
+                "Keeps running in the tray when closed"
+            ),
             0,
             0,
             300,
@@ -593,6 +725,7 @@ impl App {
             thumb_tracking: false,
             last_track: None,
             scroll_extent: None,
+            localized: localized.into_inner(),
             content,
             render_signature: String::new(),
             background: None,
@@ -691,17 +824,17 @@ impl App {
         set_text(
             self.association,
             if self.association_open {
-                "设备关联  ⌃"
+                crate::i18n::text!("设备关联  ⌃", "Link device  ⌃")
             } else {
-                "设备关联  ›"
+                crate::i18n::text!("设备关联  ›", "Link device  ›")
             },
         );
         set_text(
             self.detail_toggle,
             if self.details_open {
-                "设备详情  ⌃"
+                crate::i18n::text!("设备详情  ⌃", "Device details  ⌃")
             } else {
-                "设备详情  ›"
+                crate::i18n::text!("设备详情  ›", "Device details  ›")
             },
         );
         self.paint.borrow_mut().scroll = self.scroll;
@@ -815,11 +948,11 @@ impl App {
         set_text(
             self.saved,
             if !selected {
-                "尚无配置"
+                crate::i18n::text!("尚无配置", "No profiles")
             } else if self.dirty(view) {
-                "● 尚未保存"
+                crate::i18n::text!("● 尚未保存", "● Unsaved changes")
             } else {
-                "✓ 已保存"
+                crate::i18n::text!("✓ 已保存", "✓ Saved")
             },
         );
     }
@@ -843,22 +976,40 @@ impl App {
                         parameters,
                     } => {
                         if alias.trim().is_empty() {
-                            view.error = Some("配置名称不能为空".into());
+                            view.error = Some(
+                                crate::i18n::text!(
+                                    "配置名称不能为空",
+                                    "Profile name cannot be empty"
+                                )
+                                .into(),
+                            );
                             return;
                         }
                         if let Some(profile) = view.config.profiles.get_mut(&id) {
                             profile.alias = alias;
                             profile.parameters = parameters;
                         }
-                        view.notice = "预览：配置已保存（仅内存）".into();
+                        view.notice = crate::i18n::text!(
+                            "预览：配置已保存（仅内存）",
+                            "Preview: profile saved in memory"
+                        )
+                        .into();
                     }
                     Command::Apply(id) => {
                         view.active = Some(id);
-                        view.notice = "预览：已应用保存值（未修改系统）".into();
+                        view.notice = crate::i18n::text!(
+                            "预览：已应用保存值（未修改系统）",
+                            "Preview: saved values applied (system unchanged)"
+                        )
+                        .into();
                     }
                     Command::Bind { device, profile } => {
                         view.config.bindings.insert(device, profile);
-                        view.notice = "预览：关联成功（仅内存）".into();
+                        view.notice = crate::i18n::text!(
+                            "预览：关联成功（仅内存）",
+                            "Preview: device linked in memory"
+                        )
+                        .into();
                     }
                     Command::Pause => {
                         view.paused = !view.paused;
@@ -964,42 +1115,65 @@ impl App {
                 .keys()
                 .any(|key| view.config.bindings.get(key) == self.selected.as_ref());
             let subtitle = if !online {
-                "○ 未连接 · 历史配置"
+                crate::i18n::text!("○ 未连接 · 历史配置", "○ Disconnected · Saved profile")
             } else if self.selected == view.active {
-                "● 已连接 · 当前使用中"
+                crate::i18n::text!("● 已连接 · 当前使用中", "● Connected · Active")
             } else {
-                "● 已连接 · 正在编辑此配置"
+                crate::i18n::text!(
+                    "● 已连接 · 正在编辑此配置",
+                    "● Connected · Editing this profile"
+                )
             };
             set_text(self.subtitle, subtitle);
         } else {
-            set_text(self.title, "尚未发现可识别的鼠标");
-            set_text(self.subtitle, "连接鼠标并移动后，将自动创建配置");
+            set_text(
+                self.title,
+                crate::i18n::text!("尚未发现可识别的鼠标", "No recognized mice found"),
+            );
+            set_text(
+                self.subtitle,
+                crate::i18n::text!(
+                    "连接鼠标并移动后，将自动创建配置",
+                    "Connect and move a mouse to create a profile"
+                ),
+            );
         }
         let name = view
             .active
             .as_ref()
             .and_then(|id| view.config.profiles.get(id))
             .map(|p| p.alias.as_str())
-            .unwrap_or("等待鼠标输入");
+            .unwrap_or(crate::i18n::text!(
+                "等待鼠标输入",
+                "Waiting for mouse input"
+            ));
         set_text(
             self.running,
-            &format!(
+            &crate::i18n::localized_format!(
                 "{}\r\n当前配置：{}",
+                "{}\r\nActive profile: {}",
                 if view.paused {
-                    "Ⅱ 自动切换已暂停"
+                    crate::i18n::text!("Ⅱ 自动切换已暂停", "Ⅱ Auto-switching paused")
                 } else {
-                    "✓ 自动切换已开启"
+                    crate::i18n::text!("✓ 自动切换已开启", "✓ Auto-switching enabled")
                 },
                 name
             ),
         );
         let mut status = if view.paused {
-            format!("已暂停；仍可手动保存或应用。{}", view.notice)
+            crate::i18n::localized_format!(
+                "已暂停；仍可手动保存或应用。{}",
+                "Paused; you can still save or apply manually. {}",
+                crate::i18n::notice(&view.notice)
+            )
         } else {
-            view.notice.clone()
+            crate::i18n::notice(&view.notice).to_owned()
         };
         if let Some(error) = &view.error {
-            status = format!("提示：{error}\r\n{status}");
+            status = crate::i18n::localized_format!(
+                "提示：{error}\r\n{status}",
+                "Notice: {error}\r\n{status}"
+            );
         }
         // Avoid resetting selection / scroll position in the status control every timer tick.
         if get_text(self.status) != status {
@@ -1017,9 +1191,9 @@ impl App {
         set_text(
             self.pause,
             if view.paused {
-                "恢复自动切换"
+                crate::i18n::text!("恢复自动切换", "Resume switching")
             } else {
-                "暂停自动切换"
+                crate::i18n::text!("暂停自动切换", "Pause switching")
             },
         );
         let signature = format!(
@@ -1059,12 +1233,19 @@ impl App {
         check(self.precision, p.parameters.precision());
         set_text(
             self.details,
-            &format!(
+            &crate::i18n::localized_format!(
                 "设备：{}\r\n实例：{}\r\nContainer：{}\r\n序列号：{}\r\n接口：{}",
+                "Device: {}\r\nInstance: {}\r\nContainer: {}\r\nSerial: {}\r\nInterface: {}",
                 p.identity.name,
                 p.identity.instance,
-                p.identity.container.as_deref().unwrap_or("无"),
-                p.identity.serial.as_deref().unwrap_or("系统未提供"),
+                p.identity
+                    .container
+                    .as_deref()
+                    .unwrap_or(crate::i18n::text!("无", "None")),
+                p.identity
+                    .serial
+                    .as_deref()
+                    .unwrap_or(crate::i18n::text!("系统未提供", "Not provided by Windows")),
                 p.identity.interface
             ),
         );
@@ -1116,6 +1297,39 @@ impl App {
                     });
                 }
             }
+            LANGUAGE | LANGUAGE_ZH | LANGUAGE_EN => {
+                let english = match id {
+                    LANGUAGE_EN => true,
+                    LANGUAGE_ZH => false,
+                    _ => !crate::i18n::english(),
+                };
+                let persist = self.background.as_ref().is_some_and(|bg| !bg.is_preview());
+                if let Err(e) = crate::i18n::switch(english, persist) {
+                    error_box(&crate::i18n::localized_format!(
+                        "无法保存语言设置：{e}",
+                        "Cannot save language preference: {e}"
+                    ));
+                    return;
+                }
+                for &(hwnd, zh, en) in &self.localized {
+                    set_text(hwnd, if english { en } else { zh });
+                }
+                // Refresh device details without replacing any unsaved editor fields.
+                let alias = get_text(self.alias);
+                let editing = self.editing;
+                let speed = send(self.speed, TBM_GETPOS, 0, 0);
+                let precision = checked(self.precision);
+                self.load_editor(&self.view());
+                set_text(self.alias, &alias);
+                self.editing = editing;
+                send(self.speed, TBM_SETPOS, 1, speed);
+                check(self.precision, precision);
+                self.update_speed();
+                self.layout();
+                self.refresh();
+                let _ = InvalidateRect(Some(self.hwnd), None, true);
+                self.schedule_paint();
+            }
             PAUSE => self.command(Command::Pause),
             STARTUP => {
                 if self.background.as_ref().is_some_and(Background::is_preview) {
@@ -1123,7 +1337,10 @@ impl App {
                 }
                 let enable = !platform::autostart();
                 if let Err(e) = platform::set_autostart(enable) {
-                    error_box(&format!("开机自启设置失败：{e}"));
+                    error_box(&crate::i18n::localized_format!(
+                        "开机自启设置失败：{e}",
+                        "Cannot change startup setting: {e}"
+                    ));
                 }
                 check(self.startup, platform::autostart());
             }
@@ -1426,7 +1643,11 @@ pub fn run() -> Result<(), String> {
                 }
                 std::thread::sleep(Duration::from_millis(100));
             }
-            return Err("程序已在运行，但设置窗口尚未就绪，请稍后重试".into());
+            return Err(crate::i18n::text!(
+                "程序已在运行，但设置窗口尚未就绪，请稍后重试",
+                "The app is running, but its settings window is not ready. Try again shortly."
+            )
+            .into());
         }
         let _ = SetProcessDPIAware();
         InitCommonControlsEx(&INITCOMMONCONTROLSEX {
@@ -1450,7 +1671,11 @@ pub fn run() -> Result<(), String> {
             ..Default::default()
         };
         if RegisterClassW(&class) == 0 {
-            return Err("无法注册设置窗口".into());
+            return Err(crate::i18n::text!(
+                "无法注册设置窗口",
+                "Cannot register the settings window"
+            )
+            .into());
         }
         let scale = layout_scale();
         let style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_CLIPCHILDREN;
@@ -1499,7 +1724,10 @@ pub fn run() -> Result<(), String> {
         SetWindowLongPtrW(hwnd, GWLP_USERDATA, (&*app as *const RefCell<App>) as isize);
         let tray_ok = app.borrow().add_tray();
         if !tray_ok {
-            error_box("托盘图标创建失败，请从设置窗口重启程序。");
+            error_box(crate::i18n::text!(
+                "托盘图标创建失败，请从设置窗口重启程序。",
+                "Cannot create the tray icon. Restart the app from the settings window."
+            ));
         }
         app.borrow_mut().refresh();
         send(
@@ -1520,7 +1748,13 @@ pub fn run() -> Result<(), String> {
             let n = GetMessageW(&mut msg, None, 0, 0).0;
             if n <= 0 {
                 if n < 0 {
-                    loop_error = Some("设置窗口消息循环失败".into());
+                    loop_error = Some(
+                        crate::i18n::text!(
+                            "设置窗口消息循环失败",
+                            "Settings window message loop failed"
+                        )
+                        .into(),
+                    );
                 }
                 break;
             }
@@ -1555,9 +1789,24 @@ fn preview_view() -> View {
         return view;
     }
     for (key, alias, speed, online) in [
-        ("preview-a", "罗技 MX Master 3S", 12, true),
-        ("preview-b", "雷蛇 Viper V2 Pro", 8, true),
-        ("preview-c", "罗技 G502 HERO", 10, false),
+        (
+            "preview-a",
+            crate::i18n::text!("罗技 MX Master 3S", "Logitech MX Master 3S"),
+            12,
+            true,
+        ),
+        (
+            "preview-b",
+            crate::i18n::text!("雷蛇 Viper V2 Pro", "Razer Viper V2 Pro"),
+            8,
+            true,
+        ),
+        (
+            "preview-c",
+            crate::i18n::text!("罗技 G502 HERO", "Logitech G502 HERO"),
+            10,
+            false,
+        ),
     ] {
         let identity = Identity {
             key: key.into(),
@@ -1579,7 +1828,11 @@ fn preview_view() -> View {
         }
     }
     view.active = Some("preview-a".into());
-    view.notice = "预览模式：不监听输入、不保存配置、不更改系统设置".into();
+    view.notice = crate::i18n::text!(
+        "预览模式：不监听输入、不保存配置、不更改系统设置",
+        "Preview mode: no input monitoring, disk writes or system changes"
+    )
+    .into();
     view
 }
 
@@ -1599,6 +1852,81 @@ fn diagnose() -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn english_interface() {
+        // Isolate the process-wide language from the Chinese regression tests.
+        if std::env::var_os("MSS_ENGLISH_TEST").is_none() {
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args(["--exact", "ui::tests::english_interface", "--nocapture"])
+                .env("MSS_ENGLISH_TEST", "1")
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stdout)
+            );
+            return;
+        }
+        crate::i18n::test_english();
+        unsafe {
+            InitCommonControlsEx(&INITCOMMONCONTROLSEX {
+                dwSize: size_of::<INITCOMMONCONTROLSEX>() as u32,
+                dwICC: ICC_BAR_CLASSES,
+            })
+            .unwrap();
+            let hwnd = CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                w!("STATIC"),
+                w!("English test"),
+                WS_OVERLAPPED,
+                0,
+                0,
+                960,
+                740,
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+            let mut app = App::controls(hwnd).unwrap();
+            app.background = Some(Background::preview(preview_view()));
+            app.refresh();
+            assert_eq!(get_text(app.save), "Save profile");
+            assert_eq!(get_text(app.pause), "Pause switching");
+            assert_eq!(get_text(app.alias), "Logitech MX Master 3S");
+            assert_eq!(tray::label(OPEN, false), "Open settings");
+            assert_eq!(tray::label(PAUSE, true), "Resume switching");
+            assert!(get_text(app.running).contains("Active profile:"));
+            assert!(get_text(app.details).contains("Serial:"));
+            set_text(app.alias, "My unsaved name");
+            send(app.speed, TBM_SETPOS, 1, 17);
+            check(app.precision, false);
+            app.on_command(LANGUAGE, 0);
+            assert!(!crate::i18n::english());
+            assert_eq!(get_text(app.save), "保存配置");
+            assert_eq!(get_text(app.alias), "My unsaved name");
+            assert_eq!(send(app.speed, TBM_GETPOS, 0, 0), 17);
+            assert!(!checked(app.precision));
+            assert!(get_text(app.details).contains("序列号："));
+            app.on_command(LANGUAGE_EN, 0);
+            assert!(crate::i18n::english());
+            assert_eq!(get_text(app.save), "Save profile");
+            let menu = tray::create_menu(&app.paint.borrow()).unwrap();
+            let mut info = MENUITEMINFOW {
+                cbSize: size_of::<MENUITEMINFOW>() as u32,
+                fMask: MIIM_STATE,
+                ..Default::default()
+            };
+            GetMenuItemInfoW(GetSubMenu(menu, 3), LANGUAGE_EN as u32, false, &mut info).unwrap();
+            assert_eq!(info.fState, MFS_CHECKED);
+            DestroyMenu(menu).unwrap();
+            app.background = None;
+            let _ = DestroyWindow(hwnd);
+        }
+    }
+
     #[test]
     fn empty_menu_glyph_and_status_text_are_safe() {
         unsafe {
@@ -1918,11 +2246,20 @@ mod tests {
             );
             app.borrow().sync_paint(Some(&app.borrow().view()));
             let menu = tray::create_menu(&app.borrow().paint.borrow()).unwrap();
-            assert_eq!(GetMenuItemCount(Some(menu)), 5);
+            assert_eq!(GetMenuItemCount(Some(menu)), 6);
             assert_eq!(GetMenuItemID(menu, 0), OPEN as u32);
             assert_eq!(GetMenuItemID(menu, 1), PAUSE as u32);
             assert_eq!(GetMenuItemID(menu, 2), STARTUP as u32);
-            assert_eq!(GetMenuItemID(menu, 4), EXIT as u32);
+            let languages = GetSubMenu(menu, 3);
+            assert!(!languages.is_invalid());
+            assert_eq!(GetMenuItemCount(Some(languages)), 2);
+            assert_eq!(GetMenuItemID(languages, 0), LANGUAGE_ZH as u32);
+            assert_eq!(GetMenuItemID(languages, 1), LANGUAGE_EN as u32);
+            assert_eq!(tray::label(LANGUAGE, false), "语言");
+            assert_eq!(tray::label(LANGUAGE_ZH, false), "中文");
+            assert_eq!(tray::label(LANGUAGE_EN, false), "英文");
+
+            assert_eq!(GetMenuItemID(menu, 5), EXIT as u32);
             let mut menu_text = [0u16; 64];
             let count = GetMenuStringW(menu, OPEN as u32, Some(&mut menu_text), MF_BYCOMMAND);
             assert_eq!(

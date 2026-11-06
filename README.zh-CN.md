@@ -4,7 +4,7 @@
 
 适合在办公鼠标、游戏鼠标等多只设备之间切换。移动、点击或滚动某只可识别的鼠标，即可应用它的已保存配置，无需反复打开 Windows 鼠标设置。
 
-使用 Rust 编写，面向 **Windows 10/11 x64**，无需管理员权限、额外驱动或网络服务。当前版本为 **1.1.7**。产品和项目目录使用名称 Mouse Speed Switcher，Cargo 包名使用对应的连字符形式 `mouse-speed-switcher`。
+使用 Rust 编写，面向 **Windows 10/11 x64**，无需管理员权限、额外驱动或网络服务。当前版本为 **1.1.8**。产品和项目目录使用名称 Mouse Speed Switcher，Cargo 包名使用对应的连字符形式 `mouse-speed-switcher`。
 
 项目仓库：[Edward7x/mouse-speed-switcher](https://github.com/Edward7x/mouse-speed-switcher)。
 
@@ -41,15 +41,15 @@ Windows 的指针速度和“提高指针精确度”是全局设置，多只鼠
 
 当前应用界面使用中文标签；英文文档保留对应的中文按钮名，便于对照操作。本地发布包
 
-当前工作区已生成 `dist/MouseSpeedSwitcher-1.1.7-windows-x64.zip`，包含正式版、界面预览版、中英文 README、MIT LICENSE 和验证记录。从项目根目录执行：
+当前工作区已生成 `dist/MouseSpeedSwitcher-1.1.8-windows-x64.zip`，包含正式版、界面预览版、中英文 README、MIT LICENSE 和验证记录。从项目根目录执行：
 
 ```powershell
-Expand-Archive -LiteralPath .\dist\MouseSpeedSwitcher-1.1.7-windows-x64.zip -DestinationPath .\MouseSpeedSwitcher-1.1.7
-Set-Location .\MouseSpeedSwitcher-1.1.7
+Expand-Archive -LiteralPath .\dist\MouseSpeedSwitcher-1.1.8-windows-x64.zip -DestinationPath .\MouseSpeedSwitcher-1.1.8
+Set-Location .\MouseSpeedSwitcher-1.1.8
 .\mouse-speed-switcher.exe
 ```
 
-也可直接运行 `dist/1.1.7/mouse-speed-switcher.exe`。这是本地构建产物的位置，仓库未配置公开下载地址。
+也可直接运行 `dist/1.1.8/mouse-speed-switcher.exe`。这是本地构建产物的位置，仓库未配置公开下载地址。
 
 ### 更新与移除
 
@@ -211,7 +211,7 @@ python scripts/export-icon.py
 
 自动测试使用模拟系统参数接口及隐藏原生控件，覆盖输入去重、写入失败、暂停和主动应用、退出恢复、设备身份、配置关联与损坏恢复，以及界面和托盘回归；不会修改真实鼠标设置。
 
-[VALIDATION.md](VALIDATION.md) 记录了 1.1.7 的格式检查、Clippy、14 项测试及 release 构建通过结果，以及历史验证与待验收项。该记录不代表所有硬件场景均已通过实机验收。
+[VALIDATION.md](VALIDATION.md) 记录了 1.1.8 的格式检查、Clippy、17 项测试及 release 构建通过结果，以及历史验证与待验收项。该记录不代表所有硬件场景均已通过实机验收。
 
 实机验证应覆盖：
 
@@ -235,3 +235,19 @@ python scripts/export-icon.py
 本项目采用 [MIT License](LICENSE)。Copyright (c) 2026 Eddie7x。
 
 允许使用、修改、分发及商业使用，分发时须保留版权和许可声明。完整条款及免责声明见许可证文件；第三方依赖遵循各自的许可证。
+
+## 界面语言
+
+设置窗口、托盘菜单、状态消息和程序错误提示支持简体中文与英文。启动时跟随 Windows 显示语言：中文系统使用简体中文，其他语言使用英文。设备名称和用户配置名称保持原样。
+
+点击设置窗口底部的 **中文 / English** 按钮可立即切换，也可在托盘菜单的 **语言** 子菜单选择 **中文** 或 **英文**。选择会保存，并用于下次启动和开机自启。切换保留未保存的配置修改；预览模式仅在内存中切换语言。
+
+也可通过参数覆盖本次运行的语言（优先于已保存选择）：
+
+```powershell
+.\mouse-speed-switcher.exe --lang en
+.\mouse-speed-switcher.exe --lang zh-CN
+.\mouse-speed-switcher.exe --preview --lang en
+```
+
+使用启动参数前请先从托盘退出已有进程。参数本身不会保存；界面选择保存在 `%LOCALAPPDATA%\MouseSpeedSwitcher\language.txt`。

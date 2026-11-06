@@ -4,7 +4,7 @@ A Windows tray utility that automatically switches pointer speed and precision s
 
 Switch between office mice, gaming mice, and other devices without repeatedly opening Windows mouse settings. Moving, clicking, or scrolling an identifiable mouse applies its saved profile.
 
-Written in Rust for **Windows 10/11 x64**, with no administrator privileges, additional drivers, or network service required. Current version: **1.1.7**. The product and project folder use Mouse Speed Switcher; the Cargo package uses the corresponding hyphenated name, `mouse-speed-switcher`.
+Written in Rust for **Windows 10/11 x64**, with no administrator privileges, additional drivers, or network service required. Current version: **1.1.8**. The product and project folder use Mouse Speed Switcher; the Cargo package uses the corresponding hyphenated name, `mouse-speed-switcher`.
 
 Repository: [Edward7x/mouse-speed-switcher](https://github.com/Edward7x/mouse-speed-switcher).
 
@@ -39,15 +39,15 @@ The built EXE requires Windows 10/11 x64. It statically links the VC runtime and
 
 ### Use the Local Release Package
 
-The current workspace contains `dist/MouseSpeedSwitcher-1.1.7-windows-x64.zip`, including the application, UI preview, English and Chinese READMEs, MIT LICENSE, and validation record. From the project root, run:
+The current workspace contains `dist/MouseSpeedSwitcher-1.1.8-windows-x64.zip`, including the application, UI preview, English and Chinese READMEs, MIT LICENSE, and validation record. From the project root, run:
 
 ```powershell
-Expand-Archive -LiteralPath .\dist\MouseSpeedSwitcher-1.1.7-windows-x64.zip -DestinationPath .\MouseSpeedSwitcher-1.1.7
-Set-Location .\MouseSpeedSwitcher-1.1.7
+Expand-Archive -LiteralPath .\dist\MouseSpeedSwitcher-1.1.8-windows-x64.zip -DestinationPath .\MouseSpeedSwitcher-1.1.8
+Set-Location .\MouseSpeedSwitcher-1.1.8
 .\mouse-speed-switcher.exe
 ```
 
-You can also run `dist/1.1.7/mouse-speed-switcher.exe` directly. These are local build artifacts; no public download location has been configured.
+You can also run `dist/1.1.8/mouse-speed-switcher.exe` directly. These are local build artifacts; no public download location has been configured.
 
 ### Update and Remove
 
@@ -209,7 +209,7 @@ python scripts/export-icon.py
 
 Automated tests use mocked system parameter interfaces and hidden native controls. They cover input deduplication, write failures, pausing and explicit application, exit restoration, device identity, profile association and recovery, and UI and tray regressions. They do not change real mouse settings.
 
-[VALIDATION.md](VALIDATION.md), currently in Chinese, records passing formatting checks, Clippy, 14 tests, and a release build for 1.1.7, along with historical results and outstanding checks. It does not establish that every hardware scenario has passed real-device validation.
+[VALIDATION.md](VALIDATION.md), currently in Chinese, records passing formatting checks, Clippy, 17 tests, and a release build for 1.1.8, along with historical results and outstanding checks. It does not establish that every hardware scenario has passed real-device validation.
 
 Hardware validation should cover:
 
@@ -233,3 +233,19 @@ Before submitting code changes, run `build.ps1 -Task All`. Describe hardware val
 Licensed under the [MIT License](LICENSE). Copyright (c) 2026 Eddie7x.
 
 Use, modification, distribution, and commercial use are permitted, subject to retaining the copyright and license notices. See the license file for full terms and disclaimers. Third-party dependencies retain their respective licenses.
+
+## Interface language
+
+The settings window, tray menu, status messages and application errors support English and Simplified Chinese. The app follows the Windows display language: Chinese uses Simplified Chinese; other languages use English. Device names and profile names are preserved.
+
+Use **中文 / English** at the bottom of the settings window to switch immediately, or select **Chinese** / **English** under **Language** in the tray menu. Your choice is saved for future launches and automatic startup. Switching preserves unsaved profile edits. Preview mode changes language in memory only.
+
+Optional launch override (takes precedence over the saved choice):
+
+```powershell
+.\mouse-speed-switcher.exe --lang en
+.\mouse-speed-switcher.exe --lang zh-CN
+.\mouse-speed-switcher.exe --preview --lang en
+```
+
+To use a launch override, exit the running app from the tray first. The command-line override alone is not saved. Preferences are stored in `%LOCALAPPDATA%\MouseSpeedSwitcher\language.txt`.

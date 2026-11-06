@@ -1,7 +1,31 @@
 # Mouse Speed Switcher 验证记录
 
-更新日期：2026-11-07。当前版本：1.1.7。构建环境：Windows x64，Rust/Cargo 1.97.0，windows crate 0.61.3。
+更新日期：2026-11-07。当前版本：1.1.8。构建环境：Windows x64，Rust/Cargo 1.97.0，windows crate 0.61.3。
 
+## 1.1.8 发布包（2026-11-07）
+
+- 新增英文支持、设置窗口即时语言切换，以及托盘「语言 → 中文 / 英文」子菜单；正常运行时记住选择，预览模式仅在内存中切换。切换保留未保存的配置修改。
+- 发布前执行 `./build.ps1 -Task All`：格式检查、Clippy、17 项测试及 Release x64 构建通过。日志：`target/validation-1.1.8.log`。
+- 产物：`dist/1.1.8/mouse-speed-switcher.exe`、`dist/1.1.8/mouse-speed-switcher-ui-preview.exe`；两者使用同一构建，预览版通过文件名启用预览模式。
+- 压缩包：`dist/MouseSpeedSwitcher-1.1.8-windows-x64.zip`，含两个 EXE、中英文 README、LICENSE 和本记录。保留 1.1.7 旧包。
+- 核对 EXE 文件版本为 1.1.8，并对压缩包内全部文件与发布目录进行 SHA-256 比对。
+- 尚未进行桌面视觉与实体鼠标交替操作验收；已有 CRT 调试 PDB 缺失提示不影响构建。
+
+## 界面与托盘语言切换验证（2026-11-07，当前工作区）
+
+- 设置窗口底部增加「中文 / English」按钮；托盘菜单使用「语言 → 中文 / 英文」子菜单，并标记当前选择。切换立即更新界面，保留未保存的名称、速度和精确度修改。
+- 正常运行时选择保存至 `%LOCALAPPDATA%\MouseSpeedSwitcher\language.txt`，下次启动及开机自启生效。优先级：启动参数、已保存选择、Windows 显示语言。预览模式仅在内存中切换。
+- `./build.ps1 -Task All` 通过：格式检查、Clippy、17 项测试、Release 构建。日志：`target/validation-language-ui.log`；子菜单调整后再次通过全部检查，日志为 `target/validation-language-submenu.log`。
+- 测试覆盖中英文来回切换、未保存编辑保留、设备详情更新、托盘语言子菜单结构、语言选中状态和偏好文件创建/覆盖。
+- 最新程序为 `target/release/mouse-speed-switcher.exe`；当时尚未更新 dist 发布包（已由 1.1.8 发布包替代），尚未进行桌面视觉验收。构建仍有既有 CRT 调试 PDB 缺失提示。
+
+## 英文支持验证（2026-11-07，当前工作区）
+
+- 设置窗口、托盘菜单、状态消息及应用错误支持中英文；默认跟随 Windows 显示语言，可通过 `--lang en` / `--lang zh-CN` 覆盖本次运行。
+- `./build.ps1 -Task All` 通过：格式检查、Clippy、16 项测试和 Release 构建。日志：`target/validation-english.log`。
+- 新增独立进程英文原生控件测试，验证保存/暂停按钮、示例配置名称、托盘菜单、当前配置状态及设备详情；中文回归测试继续通过。
+- 本轮可执行文件：`target/release/mouse-speed-switcher.exe`。当时尚未更新 dist 发布包（已由 1.1.8 发布包替代）；未进行桌面视觉验收。
+- 仍有既有 CRT 调试 PDB 缺失的 LNK4099 提示，未影响构建。
 ## 1.1.7 验证结果（2026-11-07）
 
 - 执行 `./build.ps1 -Task All`：格式检查、Clippy（所有 target，`-D warnings`）、14 项测试及 release x64 构建全部通过；0 失败、0 忽略。

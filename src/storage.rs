@@ -18,7 +18,7 @@ pub fn config_path() -> Result<PathBuf, String> {
                 .join("MouseSpeedSwitcher")
                 .join("config.json")
         })
-        .ok_or_else(|| "找不到 LOCALAPPDATA".into())
+        .ok_or_else(|| crate::i18n::text!("找不到 LOCALAPPDATA", "LOCALAPPDATA is not set").into())
 }
 fn decode(path: &Path) -> Result<Config, String> {
     let c: Config = serde_json::from_slice(&fs::read(path).map_err(|e| e.to_string())?)
@@ -39,16 +39,25 @@ pub fn load(path: &Path) -> Result<(Config, Option<String>), String> {
                 .unwrap_or_default()
                 .as_nanos();
             let damaged = path.with_extension(format!("corrupt-{stamp}.json"));
-            fs::copy(path, &damaged).map_err(|e| format!("无法保留损坏的配置：{e}"))?;
+            fs::copy(path, &damaged).map_err(|e| {
+                crate::i18n::localized_format!(
+                    "无法保留损坏的配置：{e}",
+                    "Cannot preserve damaged configuration: {e}"
+                )
+            })?;
             let recovered = decode(&path.with_extension("json.bak"));
             let (config, action) = match recovered {
-                Ok(c) => (c, "已载入备份"),
-                Err(_) => (Config::default(), "已使用空配置"),
+                Ok(c) => (c, crate::i18n::text!("已载入备份", "Backup loaded")),
+                Err(_) => (
+                    Config::default(),
+                    crate::i18n::text!("已使用空配置", "Started with an empty configuration"),
+                ),
             };
             Ok((
                 config,
-                Some(format!(
+                Some(crate::i18n::localized_format!(
                     "配置读取失败：{error}；{action}。原文件已保留至 {}",
+                    "Cannot read configuration: {error}; {action}. Original preserved at {}",
                     damaged.display()
                 )),
             ))
@@ -57,7 +66,11 @@ pub fn load(path: &Path) -> Result<(Config, Option<String>), String> {
 }
 pub fn save(path: &Path, config: &Config) -> Result<(), String> {
     config.validate()?;
-    fs::create_dir_all(path.parent().ok_or("配置路径无效")?).map_err(|e| e.to_string())?;
+    fs::create_dir_all(path.parent().ok_or(crate::i18n::text!(
+        "配置路径无效",
+        "Invalid configuration path"
+    ))?)
+    .map_err(|e| e.to_string())?;
     let tmp = path.with_extension("json.tmp");
     let data = serde_json::to_vec_pretty(config).map_err(|e| e.to_string())?;
     {
