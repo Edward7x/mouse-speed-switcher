@@ -10,7 +10,7 @@
 - Cargo 包版本更新为 `1.1.7`，锁文件同步；已读取 release EXE 的 Windows 文件属性，确认 FileVersion、ProductVersion 均为 `1.1.7`，ProductName 为 `Mouse Speed Switcher`。
 - 正式版：`dist/1.1.7/mouse-speed-switcher.exe`。
 - 预览版：`dist/1.1.7/mouse-speed-switcher-ui-preview.exe`，保留 `-preview` 文件名后缀；也可用正式版添加 `--preview` 启动。
-- 发布包：`dist/MouseSpeedSwitcher-1.1.7-windows-x64.zip`，包含上述两个 EXE、README.md、MIT LICENSE 和本验证记录。
+- 发布包：`dist/MouseSpeedSwitcher-1.1.7-windows-x64.zip`，包含上述两个 EXE、README.md、README.zh-CN.md、MIT LICENSE 和本验证记录。
 - 已删除 dist 中旧版目录、旧版 EXE、旧压缩包及旧文档副本；已删除 target 根目录的 14 个旧 validation 日志，仅保留本版验证日志。
 - 本轮构建仍有 Microsoft CRT 调试 PDB 缺失的 LNK4099 提示，未导致检查、测试或构建失败。
 
