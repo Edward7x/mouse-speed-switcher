@@ -1,0 +1,30 @@
+# Rust 构建产物及本地 SDK 缓存
+/target/
+
+# 发布打包产物
+/dist/
+
+# 编辑器本地设置
+/.idea/
+/.vscode/
+/.vs/
+*.code-workspace
+
+# 编辑器临时文件与备份
+*.swp
+*.swo
+*~
+*.tmp
+
+# 本地日志、崩溃转储
+*.log
+*.dmp
+
+# Windows / macOS 目录元数据
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+[Dd]esktop.ini
+.DS_Store
+
+# 应用项目应提交 Cargo.lock 和 .cargo/config.toml，确保构建可复现。
