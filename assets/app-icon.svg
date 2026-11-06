@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <title>Mouse Speed Switcher — Blue Violet</title>
+  <desc>Two solid overlapping mice in indigo and lavender with transparent wheel cutouts.</desc>
+  <defs>
+    <mask id="rear" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="white"/>
+      <rect x="179" y="75" width="16" height="64" rx="8" fill="black"/>
+      <rect x="197" y="135" width="248" height="340" rx="124" fill="black"/>
+    </mask>
+    <mask id="front" maskUnits="userSpaceOnUse" x="0" y="0" width="512" height="512">
+      <rect width="512" height="512" fill="white"/>
+      <rect x="313" y="177" width="16" height="64" rx="8" fill="black"/>
+    </mask>
+  </defs>
+  <rect x="75" y="45" width="224" height="316" rx="112" fill="#A5A0F4" mask="url(#rear)"/>
+  <rect x="209" y="147" width="224" height="316" rx="112" fill="#4F46E5" mask="url(#front)"/>
+</svg>

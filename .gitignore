@@ -27,4 +27,8 @@ ehthumbs.db
 [Dd]esktop.ini
 .DS_Store
 
+# 本地文件
+/design/
+
+
 # 应用项目应提交 Cargo.lock 和 .cargo/config.toml，确保构建可复现。

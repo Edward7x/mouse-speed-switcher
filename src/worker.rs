@@ -52,7 +52,7 @@ pub struct Background {
     thread: Option<thread::JoinHandle<Result<(), String>>>,
 }
 impl Background {
-    #[cfg(test)]
+    /// Isolated UI preview: no listener, disk writes or system parameter changes.
     pub fn preview(view: View) -> Self {
         let (tx, _) = mpsc::channel();
         Self {
@@ -61,6 +61,9 @@ impl Background {
             view: Arc::new(Mutex::new(view)),
             thread: None,
         }
+    }
+    pub fn is_preview(&self) -> bool {
+        self.thread.is_none()
     }
     pub fn start() -> Result<Self, String> {
         let view = Arc::new(Mutex::new(View::default()));
@@ -387,7 +390,7 @@ unsafe fn run(
                     rx,
                     view,
                     error: warning,
-                    notice: "移动鼠标以自动选择配置".into(),
+                    notice: String::new(),
                     failed: None,
                     stop_error: None,
                 }))
