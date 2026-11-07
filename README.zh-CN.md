@@ -4,7 +4,7 @@
 
 适合在办公鼠标、游戏鼠标等多只设备之间切换。移动、点击或滚动某只可识别的鼠标，即可应用它的已保存配置，无需反复打开 Windows 鼠标设置。
 
-使用 Rust 编写，面向 **Windows 10/11 x64**，无需管理员权限、额外驱动或网络服务。当前版本为 **1.1.8**。产品和项目目录使用名称 Mouse Speed Switcher，Cargo 包名使用对应的连字符形式 `mouse-speed-switcher`。
+使用 Rust 编写，面向 **Windows 10/11 x64**，无需管理员权限、额外驱动或网络服务。当前版本为 **1.1.9**。产品和项目目录使用名称 Mouse Speed Switcher，Cargo 包名使用对应的连字符形式 `mouse-speed-switcher`。
 
 项目仓库：[Edward7x/mouse-speed-switcher](https://github.com/Edward7x/mouse-speed-switcher)。
 
@@ -41,15 +41,15 @@ Windows 的指针速度和“提高指针精确度”是全局设置，多只鼠
 
 当前应用界面使用中文标签；英文文档保留对应的中文按钮名，便于对照操作。本地发布包
 
-当前工作区已生成 `dist/MouseSpeedSwitcher-1.1.8-windows-x64.zip`，包含正式版、界面预览版、中英文 README、MIT LICENSE 和验证记录。从项目根目录执行：
+当前工作区已生成 `dist/MouseSpeedSwitcher-1.1.9-windows-x64.zip`，包含正式版、界面预览版、中英文 README、MIT LICENSE 和验证记录。从项目根目录执行：
 
 ```powershell
-Expand-Archive -LiteralPath .\dist\MouseSpeedSwitcher-1.1.8-windows-x64.zip -DestinationPath .\MouseSpeedSwitcher-1.1.8
-Set-Location .\MouseSpeedSwitcher-1.1.8
+Expand-Archive -LiteralPath .\dist\MouseSpeedSwitcher-1.1.9-windows-x64.zip -DestinationPath .\MouseSpeedSwitcher-1.1.9
+Set-Location .\MouseSpeedSwitcher-1.1.9
 .\mouse-speed-switcher.exe
 ```
 
-也可直接运行 `dist/1.1.8/mouse-speed-switcher.exe`。这是本地构建产物的位置，仓库未配置公开下载地址。
+也可直接运行 `dist/1.1.9/mouse-speed-switcher.exe`。已发布的版本可在 [GitHub Releases](https://github.com/Edward7x/mouse-speed-switcher/releases) 下载。
 
 ### 更新与移除
 
@@ -211,7 +211,7 @@ python scripts/export-icon.py
 
 自动测试使用模拟系统参数接口及隐藏原生控件，覆盖输入去重、写入失败、暂停和主动应用、退出恢复、设备身份、配置关联与损坏恢复，以及界面和托盘回归；不会修改真实鼠标设置。
 
-[VALIDATION.md](VALIDATION.md) 记录了 1.1.8 的格式检查、Clippy、17 项测试及 release 构建通过结果，以及历史验证与待验收项。该记录不代表所有硬件场景均已通过实机验收。
+[VALIDATION.md](VALIDATION.md) 记录了 1.1.9 的格式检查、Clippy、17 项测试及 release 构建通过结果，以及历史验证与待验收项。该记录不代表所有硬件场景均已通过实机验收。
 
 实机验证应覆盖：
 

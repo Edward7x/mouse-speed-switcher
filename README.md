@@ -4,7 +4,7 @@ A Windows tray utility that automatically switches pointer speed and precision s
 
 Switch between office mice, gaming mice, and other devices without repeatedly opening Windows mouse settings. Moving, clicking, or scrolling an identifiable mouse applies its saved profile.
 
-Written in Rust for **Windows 10/11 x64**, with no administrator privileges, additional drivers, or network service required. Current version: **1.1.8**. The product and project folder use Mouse Speed Switcher; the Cargo package uses the corresponding hyphenated name, `mouse-speed-switcher`.
+Written in Rust for **Windows 10/11 x64**, with no administrator privileges, additional drivers, or network service required. Current version: **1.1.9**. The product and project folder use Mouse Speed Switcher; the Cargo package uses the corresponding hyphenated name, `mouse-speed-switcher`.
 
 Repository: [Edward7x/mouse-speed-switcher](https://github.com/Edward7x/mouse-speed-switcher).
 
@@ -39,15 +39,15 @@ The built EXE requires Windows 10/11 x64. It statically links the VC runtime and
 
 ### Use the Local Release Package
 
-The current workspace contains `dist/MouseSpeedSwitcher-1.1.8-windows-x64.zip`, including the application, UI preview, English and Chinese READMEs, MIT LICENSE, and validation record. From the project root, run:
+The current workspace contains `dist/MouseSpeedSwitcher-1.1.9-windows-x64.zip`, including the application, UI preview, English and Chinese READMEs, MIT LICENSE, and validation record. From the project root, run:
 
 ```powershell
-Expand-Archive -LiteralPath .\dist\MouseSpeedSwitcher-1.1.8-windows-x64.zip -DestinationPath .\MouseSpeedSwitcher-1.1.8
-Set-Location .\MouseSpeedSwitcher-1.1.8
+Expand-Archive -LiteralPath .\dist\MouseSpeedSwitcher-1.1.9-windows-x64.zip -DestinationPath .\MouseSpeedSwitcher-1.1.9
+Set-Location .\MouseSpeedSwitcher-1.1.9
 .\mouse-speed-switcher.exe
 ```
 
-You can also run `dist/1.1.8/mouse-speed-switcher.exe` directly. These are local build artifacts; no public download location has been configured.
+You can also run `dist/1.1.9/mouse-speed-switcher.exe` directly. Published builds are available on the [GitHub Releases page](https://github.com/Edward7x/mouse-speed-switcher/releases).
 
 ### Update and Remove
 
@@ -209,7 +209,7 @@ python scripts/export-icon.py
 
 Automated tests use mocked system parameter interfaces and hidden native controls. They cover input deduplication, write failures, pausing and explicit application, exit restoration, device identity, profile association and recovery, and UI and tray regressions. They do not change real mouse settings.
 
-[VALIDATION.md](VALIDATION.md), currently in Chinese, records passing formatting checks, Clippy, 17 tests, and a release build for 1.1.8, along with historical results and outstanding checks. It does not establish that every hardware scenario has passed real-device validation.
+[VALIDATION.md](VALIDATION.md), currently in Chinese, records passing formatting checks, Clippy, 17 tests, and a release build for 1.1.9, along with historical results and outstanding checks. It does not establish that every hardware scenario has passed real-device validation.
 
 Hardware validation should cover:
 

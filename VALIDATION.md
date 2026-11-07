@@ -1,6 +1,12 @@
 # Mouse Speed Switcher 验证记录
 
-更新日期：2026-11-07。当前版本：1.1.8。构建环境：Windows x64，Rust/Cargo 1.97.0，windows crate 0.61.3。
+更新日期：2026-11-08。当前版本：1.1.9。构建环境：Windows x64，Rust/Cargo 1.97.0，windows crate 0.61.3。
+
+## 1.1.9 发布包（2026-11-08）
+
+- 格式检查、Clippy、17 项测试及 Windows x64 Release 构建通过，日志为 `target/validation-1.1.9.log`。
+- 发布包 `dist/MouseSpeedSwitcher-1.1.9-windows-x64.zip` 包含正式版、界面预览版、中英文 README、LICENSE 和验证记录。
+- 滚动条鼠标拖动、字体实际渲染和不同 DPI 下的界面仍待实机验收。
 
 ## 1.1.8 发布包（2026-11-07）
 
