@@ -4,17 +4,49 @@ use std::result::Result::Ok;
 use std::sync::OnceLock;
 use windows::Win32::Graphics::GdiPlus::*;
 
-pub const INK: COLORREF = COLORREF(0x00292119);
-pub const MUTED: COLORREF = COLORREF(0x007d746b);
-pub const BLUE: COLORREF = COLORREF(0x00ff680a);
-pub const SIDE: COLORREF = COLORREF(0x00f8f6f3);
-pub const WHITE: COLORREF = COLORREF(0x00ffffff);
-pub const LINE: COLORREF = COLORREF(0x00e8e4df);
+// The light palette uses the :root tokens from the supplied theme.css.
+// Win32 COLORREF stores the channels as 0x00BBGGRR.
+const fn rgb(hex: u32) -> COLORREF {
+    COLORREF(((hex & 0xff) << 16) | (hex & 0xff00) | ((hex >> 16) & 0xff))
+}
+
+pub const BACKGROUND: COLORREF = rgb(0xffffff);
+pub const FOREGROUND: COLORREF = rgb(0x090b0c);
+pub const POPOVER: COLORREF = rgb(0xffffff);
+pub const POPOVER_FOREGROUND: COLORREF = rgb(0x090b0c);
+pub const PRIMARY: COLORREF = rgb(0x008747);
+const PRIMARY_FOREGROUND: COLORREF = rgb(0xecfdf5);
+const SECONDARY: COLORREF = rgb(0xf4f4f5);
+const SECONDARY_FOREGROUND: COLORREF = rgb(0x18181b);
+const MUTED: COLORREF = rgb(0xf1f3f3);
+pub const MUTED_FOREGROUND: COLORREF = rgb(0x67787c);
+pub const ACCENT: COLORREF = rgb(0xf1f3f3);
+pub const ACCENT_FOREGROUND: COLORREF = rgb(0x161b1d);
+const DESTRUCTIVE: COLORREF = rgb(0xe7000b);
+pub const BORDER: COLORREF = rgb(0xe3e7e8);
+const INPUT: COLORREF = rgb(0xe3e7e8);
+const RING: COLORREF = rgb(0x9ca8ab);
+const SIDEBAR: COLORREF = rgb(0xf9fbfb);
+const SIDEBAR_ACCENT: COLORREF = rgb(0xe3f0e9);
+const SIDEBAR_ACCENT_FOREGROUND: COLORREF = rgb(0x161b1d);
+const SIDEBAR_BORDER: COLORREF = rgb(0xe3e7e8);
+
+// Darken the primary token for hover and press while keeping its text legible.
+const fn shade_primary(percent: u32) -> COLORREF {
+    let green = (PRIMARY.0 >> 8) & 0xff;
+    let blue = (PRIMARY.0 >> 16) & 0xff;
+    let red = PRIMARY.0 & 0xff;
+    COLORREF(
+        (red * percent / 100) | ((green * percent / 100) << 8) | ((blue * percent / 100) << 16),
+    )
+}
 
 pub struct Theme {
     pub normal: HFONT,
     pub small: HFONT,
     pub heading: HFONT,
+    pub field_label: HFONT,
+    pub status_heading: HFONT,
     pub title: HFONT,
     pub icons: HFONT,
     pub menu_font: HFONT,
@@ -23,7 +55,13 @@ pub struct Theme {
 }
 impl Theme {
     pub unsafe fn new(scale: f32) -> Self {
-        let font = |size: f32, weight: i32| {
+        let english = crate::i18n::english();
+        let preferred = if english {
+            w!("Segoe UI Variable Text")
+        } else {
+            w!("Microsoft YaHei UI")
+        };
+        let create_font = |size: f32, weight: i32, face: PCWSTR| {
             CreateFontW(
                 -(size * scale).round() as i32,
                 0,
@@ -38,13 +76,43 @@ impl Theme {
                 CLIP_DEFAULT_PRECIS,
                 CLEARTYPE_QUALITY,
                 DEFAULT_PITCH.0 as u32,
-                w!("Microsoft YaHei"),
+                face,
             )
         };
+        let probe = create_font(16.0, 400, preferred);
+        let dc = CreateCompatibleDC(None);
+        let mut name = [0u16; 64];
+        let mut available = false;
+        if !dc.is_invalid() {
+            let old = SelectObject(dc, probe.into());
+            if GetTextFaceW(dc, Some(&mut name)) > 0 {
+                let face = String::from_utf16_lossy(
+                    &name[..name.iter().position(|&c| c == 0).unwrap_or(name.len())],
+                );
+                available = if english {
+                    face.starts_with("Segoe UI Variable")
+                } else {
+                    face.contains("YaHei UI") || face.contains("微软雅黑 UI")
+                };
+            }
+            SelectObject(dc, old);
+            let _ = DeleteDC(dc);
+        }
+        let _ = DeleteObject(probe.into());
+        let face = if available {
+            preferred
+        } else if english {
+            w!("Segoe UI")
+        } else {
+            w!("Microsoft YaHei")
+        };
+        let font = |size, weight| create_font(size, weight, face);
         Self {
             normal: font(16.0, 400),
             small: font(13.0, 400),
-            heading: font(18.0, 600),
+            heading: font(20.0, 600),
+            field_label: font(18.0, 600),
+            status_heading: font(16.0, 600),
             title: font(28.0, 600),
             menu_font: font(14.0, 400),
             icons: CreateFontW(
@@ -63,22 +131,26 @@ impl Theme {
                 0,
                 w!("Segoe MDL2 Assets"),
             ),
-            white: CreateSolidBrush(WHITE),
-            side: CreateSolidBrush(SIDE),
+            white: CreateSolidBrush(BACKGROUND),
+            side: CreateSolidBrush(SIDEBAR),
         }
+    }
+    pub fn text_fonts(&self) -> [HFONT; 7] {
+        [
+            self.normal,
+            self.small,
+            self.heading,
+            self.field_label,
+            self.status_heading,
+            self.title,
+            self.menu_font,
+        ]
     }
 }
 impl Drop for Theme {
     fn drop(&mut self) {
         unsafe {
-            for font in [
-                self.normal,
-                self.small,
-                self.heading,
-                self.title,
-                self.icons,
-                self.menu_font,
-            ] {
+            for font in self.text_fonts().into_iter().chain([self.icons]) {
                 let _ = DeleteObject(font.into());
             }
             let _ = DeleteObject(self.white.into());
@@ -94,6 +166,8 @@ pub struct PaintState {
     pub font: HFONT,
     pub small: HFONT,
     pub heading: HFONT,
+    pub field_label: HFONT,
+    pub status_heading: HFONT,
     pub icons: HFONT,
     pub menu_font: HFONT,
     pub autostart: bool,
@@ -118,6 +192,8 @@ impl PaintState {
             font: theme.normal,
             small: theme.small,
             heading: theme.heading,
+            field_label: theme.field_label,
+            status_heading: theme.status_heading,
             icons: theme.icons,
             menu_font: theme.menu_font,
             autostart: false,
@@ -151,18 +227,28 @@ pub unsafe fn paint_message(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) ->
             let dc = HDC(wp.0 as *mut _);
             let mut rect = RECT::default();
             let _ = GetClientRect(hwnd, &mut rect);
-            fill(dc, &rect, WHITE);
-            rect.right = state.px(270);
-            fill(dc, &rect, SIDE);
+            fill(dc, &rect, BACKGROUND);
             fill(
                 dc,
                 &RECT {
-                    left: state.px(270),
-                    right: state.px(960),
+                    left: state.px(22),
+                    right: state.px(248),
+                    top: state.px(608),
+                    bottom: state.px(609),
+                },
+                BORDER,
+            );
+            rect.right = state.px(270);
+            fill(dc, &rect, SIDEBAR);
+            fill(
+                dc,
+                &RECT {
+                    left: state.px(300),
+                    right: state.px(906),
                     top: state.px(666),
                     bottom: state.px(666) + 1,
                 },
-                LINE,
+                BORDER,
             );
             Some(LRESULT(1))
         }
@@ -174,20 +260,20 @@ pub unsafe fn paint_message(hwnd: HWND, message: u32, wp: WPARAM, lp: LPARAM) ->
             let _ = ScreenToClient(hwnd, &mut point);
             let side = point.x < state.px(270);
             let color = if child == state.status && state.error {
-                COLORREF(0x004b3bc7)
+                DESTRUCTIVE
             } else if (child == state.saved && state.dirty)
                 || (child == state.running && state.paused)
             {
-                COLORREF(0x000b8ab2)
+                MUTED_FOREGROUND
             } else if child == state.saved && state.selected {
-                COLORREF(0x00579f24)
+                PRIMARY
             } else if child == state.status || child == state.subtitle || child == state.running {
-                MUTED
+                MUTED_FOREGROUND
             } else {
-                INK
+                FOREGROUND
             };
             SetBkMode(dc, TRANSPARENT);
-            SetBkColor(dc, if side { SIDE } else { WHITE });
+            SetBkColor(dc, if side { SIDEBAR } else { BACKGROUND });
             SetTextColor(dc, color);
             Some(LRESULT(if side {
                 state.side.0 as isize
@@ -374,7 +460,7 @@ pub unsafe fn rounded(dc: HDC, rect: RECT, diameter: i32, color: COLORREF, borde
     shape(dc, rect, diameter, Some(color), border);
 }
 pub unsafe fn focus_ring(dc: HDC, rect: RECT, diameter: i32) {
-    shape(dc, rect, diameter, None, BLUE);
+    shape(dc, rect, diameter, None, RING);
 }
 pub unsafe fn keyboard_focus(hwnd: HWND) -> bool {
     send(hwnd, WM_QUERYUISTATE, 0, 0) as u32 & UISF_HIDEFOCUS == 0
@@ -533,14 +619,14 @@ pub unsafe extern "system" fn control_proc(
             let _ = GetClientRect(hwnd, &mut rect);
             let frame = Buffer::new(dc, rect);
             let dc = frame.dc();
-            fill(dc, &rect, WHITE);
+            fill(dc, &rect, BACKGROUND);
             let color = if IsChild(hwnd, GetFocus()).as_bool() {
-                BLUE
+                RING
             } else {
-                LINE
+                INPUT
             };
             let radius = (rect.bottom as f32 / 38.0 * 10.0).round() as i32;
-            rounded(dc, rect, radius, WHITE, color);
+            rounded(dc, rect, radius, BACKGROUND, color);
             drop(frame);
             let _ = EndPaint(hwnd, &paint);
             return LRESULT(0);
@@ -596,7 +682,7 @@ pub unsafe extern "system" fn control_proc(
         let _ = GetClientRect(hwnd, &mut rect);
         let frame = Buffer::new(dc, rect);
         let dc = frame.dc();
-        fill(dc, &rect, WHITE);
+        fill(dc, &rect, BACKGROUND);
         let scale = rect.bottom as f32 / 38.0;
         let inset = (12.0 * scale) as i32;
         let center = rect.bottom / 2;
@@ -612,8 +698,8 @@ pub unsafe extern "system" fn control_proc(
                 bottom: center + 3,
             },
             5,
-            LINE,
-            LINE,
+            BORDER,
+            BORDER,
         );
         if thumb > inset && IsWindowEnabled(hwnd).as_bool() {
             rounded(
@@ -625,8 +711,8 @@ pub unsafe extern "system" fn control_proc(
                     bottom: center + 3,
                 },
                 5,
-                BLUE,
-                BLUE,
+                PRIMARY,
+                PRIMARY,
             );
         }
         let radius = (9.0 * scale).round() as i32;
@@ -639,8 +725,8 @@ pub unsafe extern "system" fn control_proc(
                 bottom: center + radius,
             },
             radius * 2,
-            WHITE,
-            LINE,
+            BACKGROUND,
+            BORDER,
         );
         if GetFocus() == hwnd && keyboard_focus(hwnd) {
             focus_ring(dc, rect, (10.0 * scale) as i32);
@@ -679,7 +765,7 @@ pub unsafe extern "system" fn control_proc(
 pub unsafe fn button(app: &PaintState, item: &DRAWITEMSTRUCT) {
     let dc = item.hDC;
     let mut rect = item.rcItem;
-    fill(dc, &rect, WHITE);
+    fill(dc, &rect, BACKGROUND);
     let id = item.CtlID as u16;
     let disabled = item.itemState.0 & ODS_DISABLED.0 != 0;
     let down = item.itemState.0 & ODS_SELECTED.0 != 0;
@@ -695,11 +781,11 @@ pub unsafe fn button(app: &PaintState, item: &DRAWITEMSTRUCT) {
             bottom: (rect.bottom + p(26)) / 2,
         };
         let color = if disabled {
-            LINE
+            BORDER
         } else if on {
-            BLUE
+            PRIMARY
         } else {
-            COLORREF(0x00d0ccc7)
+            INPUT
         };
         rounded(dc, track, p(26), color, color);
         let left = if on {
@@ -716,51 +802,75 @@ pub unsafe fn button(app: &PaintState, item: &DRAWITEMSTRUCT) {
                 bottom: track.bottom - p(3),
             },
             p(20),
-            WHITE,
-            WHITE,
+            BACKGROUND,
+            BACKGROUND,
         );
         rect.right = track.left - p(12);
         text(
             dc,
             &label,
             rect,
-            app.font,
-            if disabled { MUTED } else { INK },
+            if id == PRECISION {
+                app.field_label
+            } else {
+                app.font
+            },
+            if disabled {
+                MUTED_FOREGROUND
+            } else {
+                FOREGROUND
+            },
             DT_LEFT | DT_VCENTER | DT_SINGLELINE,
         );
     } else {
         let primary = id == SAVE;
         let disclosure = id == ASSOCIATION || id == DETAILS;
         let bg = if disabled {
-            COLORREF(0x00f7f5f2)
+            MUTED
         } else if primary {
             if down {
-                COLORREF(0x00dc5000)
+                shade_primary(80)
             } else if hover {
-                COLORREF(0x00ff7b2e)
+                shade_primary(90)
             } else {
-                BLUE
+                PRIMARY
             }
         } else if down || hover {
-            COLORREF(0x00f7f4f0)
+            ACCENT
         } else {
-            WHITE
+            SECONDARY
         };
         rounded(
             dc,
             rect,
             p(10),
             bg,
-            if primary || disclosure { bg } else { LINE },
+            if primary || disclosure { bg } else { BORDER },
         );
         if disclosure {
-            rect.left += p(2);
+            text(
+                dc,
+                if id == ASSOCIATION {
+                    "\u{e71b}"
+                } else {
+                    "\u{e946}"
+                },
+                RECT {
+                    left: rect.left + p(12),
+                    right: rect.left + p(36),
+                    ..rect
+                },
+                app.icons,
+                FOREGROUND,
+                DT_CENTER | DT_VCENTER | DT_SINGLELINE,
+            );
+            rect.left += p(48);
             text(
                 dc,
                 label.split("  ").next().unwrap_or(&label),
                 rect,
                 app.heading,
-                INK,
+                FOREGROUND,
                 DT_LEFT | DT_VCENTER | DT_SINGLELINE,
             );
             text(
@@ -771,21 +881,44 @@ pub unsafe fn button(app: &PaintState, item: &DRAWITEMSTRUCT) {
                     ..rect
                 },
                 app.font,
-                MUTED,
+                MUTED_FOREGROUND,
                 DT_CENTER | DT_VCENTER | DT_SINGLELINE,
             );
         } else {
+            if matches!(id, PAUSE | LANGUAGE) {
+                let icon = match id {
+                    LANGUAGE => "\u{e774}",
+                    _ if app.paused => "\u{e768}",
+                    _ => "\u{e769}",
+                };
+                text(
+                    dc,
+                    icon,
+                    RECT {
+                        left: rect.left + p(10),
+                        right: rect.left + p(34),
+                        ..rect
+                    },
+                    app.icons,
+                    SECONDARY_FOREGROUND,
+                    DT_CENTER | DT_VCENTER | DT_SINGLELINE,
+                );
+                rect.left += p(34);
+                rect.right -= p(8);
+            }
             text(
                 dc,
                 &label,
                 rect,
                 app.font,
                 if disabled {
-                    MUTED
+                    MUTED_FOREGROUND
                 } else if primary {
-                    WHITE
+                    PRIMARY_FOREGROUND
+                } else if down || hover {
+                    ACCENT_FOREGROUND
                 } else {
-                    INK
+                    SECONDARY_FOREGROUND
                 },
                 DT_CENTER | DT_VCENTER | DT_SINGLELINE,
             );
@@ -799,7 +932,7 @@ pub unsafe fn button(app: &PaintState, item: &DRAWITEMSTRUCT) {
 }
 
 pub unsafe fn list(app: &PaintState, item: &DRAWITEMSTRUCT) {
-    fill(item.hDC, &item.rcItem, SIDE);
+    fill(item.hDC, &item.rcItem, SIDEBAR);
     let Some((_, label)) = app.rows.get(item.itemID as usize) else {
         return;
     };
@@ -814,7 +947,7 @@ pub unsafe fn list(app: &PaintState, item: &DRAWITEMSTRUCT) {
                 top: rect.top + p(12),
                 bottom: rect.top + p(12) + 1,
             },
-            LINE,
+            SIDEBAR_BORDER,
         );
         text(
             item.hDC,
@@ -826,20 +959,14 @@ pub unsafe fn list(app: &PaintState, item: &DRAWITEMSTRUCT) {
                 bottom: rect.top + p(43),
             },
             app.small,
-            MUTED,
+            MUTED_FOREGROUND,
             DT_LEFT | DT_VCENTER | DT_SINGLELINE,
         );
     }
     rect = card_rect(&app.rows, item.itemID as usize, app.scale, item.rcItem);
     let selection_rect = rect;
     if item.itemState.0 & ODS_SELECTED.0 != 0 {
-        rounded(
-            item.hDC,
-            rect,
-            p(12),
-            COLORREF(0x00fce9db),
-            COLORREF(0x00fce9db),
-        );
+        rounded(item.hDC, rect, p(12), SIDEBAR_ACCENT, SIDEBAR_ACCENT);
     }
     let online = label.starts_with('●');
     let dot = RECT {
@@ -848,7 +975,7 @@ pub unsafe fn list(app: &PaintState, item: &DRAWITEMSTRUCT) {
         right: rect.left + p(19),
         bottom: rect.top + p(27),
     };
-    let color = if online { COLORREF(0x00579f24) } else { MUTED };
+    let color = if online { PRIMARY } else { MUTED_FOREGROUND };
     rounded(item.hDC, dot, p(7), color, color);
     rect.left += p(30);
     rect.right -= p(8);
@@ -866,7 +993,7 @@ pub unsafe fn list(app: &PaintState, item: &DRAWITEMSTRUCT) {
         },
         status_rect,
         app.small,
-        MUTED,
+        MUTED_FOREGROUND,
         DT_LEFT | DT_SINGLELINE | DT_VCENTER,
     );
     text(
@@ -874,7 +1001,13 @@ pub unsafe fn list(app: &PaintState, item: &DRAWITEMSTRUCT) {
         label.trim_start_matches(['●', '○', ' ']),
         rect,
         app.font,
-        if online { INK } else { MUTED },
+        if item.itemState.0 & ODS_SELECTED.0 != 0 {
+            SIDEBAR_ACCENT_FOREGROUND
+        } else if online {
+            FOREGROUND
+        } else {
+            MUTED_FOREGROUND
+        },
         DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS,
     );
     if item.itemState.0 & ODS_FOCUS.0 != 0 && keyboard_focus(item.hwndItem) {
@@ -934,17 +1067,17 @@ pub fn history_header(rows: &[(String, String)], index: usize) -> bool {
         && (index == 0 || rows[index - 1].1.starts_with('●'))
 }
 pub unsafe fn combo_field(app: &PaintState, hwnd: HWND, dc: HDC, rect: RECT) {
-    fill(dc, &rect, WHITE);
+    fill(dc, &rect, BACKGROUND);
     let p = |v| app.px(v);
     rounded(
         dc,
         rect,
         p(10),
-        WHITE,
+        BACKGROUND,
         if GetFocus() == hwnd && keyboard_focus(hwnd) {
-            BLUE
+            RING
         } else {
-            LINE
+            INPUT
         },
     );
     let index = send(hwnd, CB_GETCURSEL, 0, 0);
@@ -964,9 +1097,9 @@ pub unsafe fn combo_field(app: &PaintState, hwnd: HWND, dc: HDC, rect: RECT) {
         },
         app.font,
         if IsWindowEnabled(hwnd).as_bool() {
-            INK
+            FOREGROUND
         } else {
-            MUTED
+            MUTED_FOREGROUND
         },
         DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS,
     );
@@ -979,7 +1112,7 @@ pub unsafe fn combo_field(app: &PaintState, hwnd: HWND, dc: HDC, rect: RECT) {
             ..rect
         },
         app.font,
-        MUTED,
+        MUTED_FOREGROUND,
         DT_CENTER | DT_VCENTER | DT_SINGLELINE,
     );
 }
@@ -989,7 +1122,7 @@ pub unsafe fn combo_item(app: &PaintState, item: &DRAWITEMSTRUCT) {
         return;
     }
     let selected = item.itemState.0 & ODS_SELECTED.0 != 0;
-    fill(item.hDC, &item.rcItem, WHITE);
+    fill(item.hDC, &item.rcItem, BACKGROUND);
     let p = |v| app.px(v);
     let mut rect = item.rcItem;
     rect.left += p(4);
@@ -997,13 +1130,7 @@ pub unsafe fn combo_item(app: &PaintState, item: &DRAWITEMSTRUCT) {
     rect.top += p(3);
     rect.bottom -= p(3);
     if selected {
-        rounded(
-            item.hDC,
-            rect,
-            p(8),
-            COLORREF(0x00fce9db),
-            COLORREF(0x00fce9db),
-        );
+        rounded(item.hDC, rect, p(8), ACCENT, ACCENT);
     }
     if let Some((_, label)) = app.devices.get(item.itemID as usize) {
         let (name, identity) = label.split_once(" [").unwrap_or((label, ""));
@@ -1018,7 +1145,7 @@ pub unsafe fn combo_item(app: &PaintState, item: &DRAWITEMSTRUCT) {
             name,
             title,
             app.font,
-            INK,
+            FOREGROUND,
             DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS,
         );
         rect.top += p(26);
@@ -1027,7 +1154,7 @@ pub unsafe fn combo_item(app: &PaintState, item: &DRAWITEMSTRUCT) {
             identity.trim_end_matches(']'),
             rect,
             app.small,
-            MUTED,
+            MUTED_FOREGROUND,
             DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS,
         );
     }
@@ -1036,15 +1163,14 @@ pub unsafe fn combo_item(app: &PaintState, item: &DRAWITEMSTRUCT) {
 pub unsafe fn status_label(app: &PaintState, hwnd: HWND, dc: HDC, rect: RECT, running: bool) {
     let p = |v| app.px(v);
     let value = get_text(hwnd);
-    fill(dc, &rect, if running { SIDE } else { WHITE });
+    fill(dc, &rect, if running { SIDEBAR } else { BACKGROUND });
     let (first, rest) = value.split_once("\r\n").unwrap_or((&value, ""));
-    let green = COLORREF(0x00579f24);
     let color = if running && app.paused {
-        COLORREF(0x000b8ab2)
+        MUTED_FOREGROUND
     } else if running || value.starts_with('●') {
-        green
+        PRIMARY
     } else {
-        MUTED
+        MUTED_FOREGROUND
     };
     if running {
         let mut measured = RECT {
@@ -1071,7 +1197,7 @@ pub unsafe fn status_label(app: &PaintState, hwnd: HWND, dc: HDC, rect: RECT, ru
             right: p(19),
             bottom: offset + p(23),
         };
-        rounded(dc, icon, p(19), SIDE, color);
+        rounded(dc, icon, p(19), SIDEBAR, color);
         text(
             dc,
             if app.paused { "Ⅱ" } else { "✓" },
@@ -1089,8 +1215,8 @@ pub unsafe fn status_label(app: &PaintState, hwnd: HWND, dc: HDC, rect: RECT, ru
                 right: rect.right,
                 bottom: offset + p(28),
             },
-            app.font,
-            INK,
+            app.status_heading,
+            FOREGROUND,
             DT_LEFT | DT_SINGLELINE | DT_VCENTER,
         );
         text(
@@ -1102,7 +1228,7 @@ pub unsafe fn status_label(app: &PaintState, hwnd: HWND, dc: HDC, rect: RECT, ru
                 ..rect
             },
             app.small,
-            MUTED,
+            MUTED_FOREGROUND,
             DT_LEFT | DT_WORDBREAK,
         );
     } else if value.starts_with(['●', '○']) {
@@ -1121,10 +1247,17 @@ pub unsafe fn status_label(app: &PaintState, hwnd: HWND, dc: HDC, rect: RECT, ru
                 ..rect
             },
             app.font,
-            MUTED,
+            MUTED_FOREGROUND,
             DT_LEFT | DT_SINGLELINE | DT_VCENTER,
         );
     } else {
-        text(dc, &value, rect, app.font, MUTED, DT_LEFT | DT_WORDBREAK);
+        text(
+            dc,
+            &value,
+            rect,
+            app.font,
+            MUTED_FOREGROUND,
+            DT_LEFT | DT_WORDBREAK,
+        );
     }
 }

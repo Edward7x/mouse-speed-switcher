@@ -112,7 +112,7 @@ unsafe fn layout_scale() -> f32 {
 
 struct App {
     hwnd: HWND,
-    _theme: theme::Theme,
+    theme: theme::Theme,
     tray_icon: tray::Icon,
     paint: Box<RefCell<theme::PaintState>>,
     scale: f32,
@@ -243,12 +243,6 @@ impl App {
                     Some(("暂停自动切换", "Pause switching"))
                 }
                 "开机自启" | "Run at startup" => Some(("开机自启", "Run at startup")),
-                "关闭窗口后仍在托盘运行" | "Keeps running in the tray when closed" => {
-                    Some((
-                        "关闭窗口后仍在托盘运行",
-                        "Keeps running in the tray when closed",
-                    ))
-                }
                 _ => None,
             };
             if let Some((zh, en)) = pair {
@@ -359,8 +353,8 @@ impl App {
             crate::i18n::text!("指针设置", "Pointer settings"),
             0,
             0,
-            30,
-            138,
+            76,
+            144,
             300,
             28,
             theme.heading,
@@ -385,7 +379,7 @@ impl App {
             182,
             300,
             28,
-            font,
+            theme.field_label,
         )?;
         let speed = field(
             TRACKBAR_CLASSW,
@@ -432,7 +426,7 @@ impl App {
             296,
             606,
             38,
-            font,
+            theme.field_label,
         )?;
         field(
             w!("STATIC"),
@@ -457,7 +451,7 @@ impl App {
             376,
             606,
             26,
-            font,
+            theme.field_label,
         )?;
         let edit_frame = field(
             w!("STATIC"),
@@ -649,7 +643,7 @@ impl App {
             PAUSE,
             300,
             675,
-            158,
+            188,
             30,
             font,
         )?;
@@ -659,7 +653,7 @@ impl App {
             "中文 / English",
             WS_TABSTOP.0 | BS_OWNERDRAW as u32,
             LANGUAGE,
-            480,
+            510,
             675,
             200,
             30,
@@ -671,26 +665,11 @@ impl App {
             crate::i18n::text!("开机自启", "Run at startup"),
             WS_TABSTOP.0 | BS_AUTOCHECKBOX as u32,
             STARTUP,
-            758,
-            687,
+            734,
+            673,
             172,
             34,
             font,
-        )?;
-        create(
-            hwnd,
-            w!("STATIC"),
-            crate::i18n::text!(
-                "关闭窗口后仍在托盘运行",
-                "Keeps running in the tray when closed"
-            ),
-            0,
-            0,
-            300,
-            711,
-            420,
-            22,
-            theme.small,
         )?;
         check(startup, platform::autostart());
         let paint = Box::new(RefCell::new(theme::PaintState::new(&theme, scale)));
@@ -703,7 +682,7 @@ impl App {
         );
         let mut app = Self {
             hwnd,
-            _theme: theme,
+            theme,
             tray_icon: tray::Icon::new(),
             paint,
             scale,
@@ -1311,6 +1290,37 @@ impl App {
                     ));
                     return;
                 }
+                let theme = theme::Theme::new(self.scale);
+                {
+                    let mut paint = self.paint.borrow_mut();
+                    paint.font = theme.normal;
+                    paint.small = theme.small;
+                    paint.heading = theme.heading;
+                    paint.field_label = theme.field_label;
+                    paint.status_heading = theme.status_heading;
+                    paint.icons = theme.icons;
+                    paint.menu_font = theme.menu_font;
+                    paint.white = theme.white;
+                    paint.side = theme.side;
+                }
+                let fonts = (self.theme.text_fonts(), theme.text_fonts());
+                unsafe extern "system" fn update_font(
+                    hwnd: HWND,
+                    data: LPARAM,
+                ) -> windows::core::BOOL {
+                    let (old, new) = &*(data.0 as *const ([HFONT; 7], [HFONT; 7]));
+                    let current = send(hwnd, WM_GETFONT, 0, 0);
+                    if let Some(index) = old.iter().position(|font| font.0 as isize == current) {
+                        send(hwnd, WM_SETFONT, new[index].0 as usize, 0);
+                    }
+                    windows::core::BOOL(1)
+                }
+                let _ = EnumChildWindows(
+                    Some(self.hwnd),
+                    Some(update_font),
+                    LPARAM(&fonts as *const _ as isize),
+                );
+                self.theme = theme;
                 for &(hwnd, zh, en) in &self.localized {
                     set_text(hwnd, if english { en } else { zh });
                 }
@@ -1433,6 +1443,17 @@ unsafe extern "system" fn pane_proc(
     if msg == WM_NCDESTROY {
         let _ = RemoveWindowSubclass(hwnd, Some(pane_proc), 1);
     }
+    // The STATIC class can report HTTRANSPARENT, including over the viewport's
+    // nonclient scrollbar. Let the standard window procedure handle that strip.
+    if msg == WM_NCHITTEST {
+        let hit = DefWindowProcW(hwnd, msg, wp, lp);
+        if hit.0 == HTVSCROLL as isize {
+            return hit;
+        }
+    }
+    if matches!(msg, WM_NCLBUTTONDOWN | WM_NCLBUTTONDBLCLK) && wp.0 == HTVSCROLL as usize {
+        return DefWindowProcW(hwnd, msg, wp, lp);
+    }
     if msg == WM_PAINT {
         let mut paint = PAINTSTRUCT::default();
         let dc = BeginPaint(hwnd, &mut paint);
@@ -1440,13 +1461,38 @@ unsafe extern "system" fn pane_proc(
         let _ = GetClientRect(hwnd, &mut rect);
         let frame = theme::Buffer::new(dc, rect);
         let dc = frame.dc();
-        theme::fill(dc, &rect, theme::WHITE);
+        theme::fill(dc, &rect, theme::BACKGROUND);
         let ptr = GetPropW(HWND(root as *mut _), theme::PAINT_STATE).0
             as *const RefCell<theme::PaintState>;
         if !ptr.is_null()
             && let Ok(app) = (*ptr).try_borrow()
         {
-            for y in [124, 284, 370, 504] {
+            theme::rounded(
+                dc,
+                RECT {
+                    left: app.px(30),
+                    right: app.px(62),
+                    top: app.px(142 - app.scroll),
+                    bottom: app.px(174 - app.scroll),
+                },
+                app.px(10),
+                COLORREF(0x00e9f0e3),
+                COLORREF(0x00e9f0e3),
+            );
+            theme::text(
+                dc,
+                "\u{e713}",
+                RECT {
+                    left: app.px(30),
+                    right: app.px(62),
+                    top: app.px(142 - app.scroll),
+                    bottom: app.px(174 - app.scroll),
+                },
+                app.icons,
+                theme::PRIMARY,
+                DT_CENTER | DT_VCENTER | DT_SINGLELINE,
+            );
+            for y in [124, 284, 370] {
                 let top = app.px(y - app.scroll);
                 theme::fill(
                     dc,
@@ -1456,7 +1502,7 @@ unsafe extern "system" fn pane_proc(
                         top,
                         bottom: top + 1,
                     },
-                    theme::LINE,
+                    theme::BORDER,
                 );
             }
         }
@@ -1467,7 +1513,7 @@ unsafe extern "system" fn pane_proc(
     if msg == WM_ERASEBKGND {
         let mut rect = RECT::default();
         let _ = GetClientRect(hwnd, &mut rect);
-        theme::fill(HDC(wp.0 as *mut _), &rect, theme::WHITE);
+        theme::fill(HDC(wp.0 as *mut _), &rect, theme::BACKGROUND);
         return LRESULT(1);
     }
     if matches!(
@@ -1943,9 +1989,9 @@ mod tests {
                 right: 252,
                 bottom: 44,
             };
-            theme::fill(dc, &rect, theme::BLUE);
-            theme::text(dc, "", rect, theme.normal, theme::INK, DT_LEFT);
-            assert_eq!(GetPixel(dc, 10, 10), theme::BLUE);
+            theme::fill(dc, &rect, theme::PRIMARY);
+            theme::text(dc, "", rect, theme.normal, theme::FOREGROUND, DT_LEFT);
+            assert_eq!(GetPixel(dc, 10, 10), theme::PRIMARY);
             let item = DRAWITEMSTRUCT {
                 CtlType: ODT_MENU,
                 itemID: STARTUP as u32,
@@ -1954,7 +2000,7 @@ mod tests {
                 ..Default::default()
             };
             tray::draw(&state, &item); // Startup disabled -> empty glyph, actual native draw path.
-            assert_eq!(GetPixel(dc, 20, 20), theme::WHITE);
+            assert_eq!(GetPixel(dc, 20, 20), theme::BACKGROUND);
             SelectObject(dc, old);
             let _ = DeleteObject(bitmap.into());
             let _ = DeleteDC(dc);
@@ -2013,7 +2059,7 @@ mod tests {
                     busy.running.0 as isize,
                 );
                 assert_eq!(brush, busy.paint.borrow().side.0 as isize);
-                for (index, expected) in [(1, COLORREF(0x00579f24)), (2, theme::MUTED)] {
+                for (index, expected) in [(1, theme::PRIMARY), (2, theme::MUTED_FOREGROUND)] {
                     let item = DRAWITEMSTRUCT {
                         CtlType: ODT_LISTBOX,
                         CtlID: LIST as u32,
@@ -2064,7 +2110,7 @@ mod tests {
                 );
                 assert_eq!(
                     GetPixel(dc, busy.px(19), 20 + busy.px(27)),
-                    COLORREF(0x00579f24),
+                    theme::PRIMARY,
                     "buffered list rows must keep their window position"
                 );
                 let area = RECT {
@@ -2073,19 +2119,19 @@ mod tests {
                     right: busy.px(244),
                     bottom: busy.px(104),
                 };
-                theme::fill(dc, &area, theme::BLUE);
+                theme::fill(dc, &area, theme::PRIMARY);
                 {
                     let frame = theme::Buffer::new(dc, area);
-                    theme::fill(frame.dc(), &area, theme::WHITE);
+                    theme::fill(frame.dc(), &area, theme::BACKGROUND);
                     assert_eq!(
                         GetPixel(dc, 20, 20),
-                        theme::BLUE,
+                        theme::PRIMARY,
                         "partial frame must stay offscreen"
                     );
                 }
                 assert_eq!(
                     GetPixel(dc, 20, 20),
-                    theme::WHITE,
+                    theme::BACKGROUND,
                     "complete frame must be presented on drop"
                 );
                 let old_font = SelectObject(dc, busy.paint.borrow().font.into());
@@ -2105,7 +2151,7 @@ mod tests {
                     right: busy.px(244),
                     bottom: busy.px(104),
                 };
-                theme::fill(dc, &area, theme::WHITE);
+                theme::fill(dc, &area, theme::BACKGROUND);
                 theme::rounded(
                     dc,
                     RECT {
@@ -2115,13 +2161,13 @@ mod tests {
                         bottom: 36,
                     },
                     26,
-                    theme::BLUE,
-                    theme::BLUE,
+                    theme::PRIMARY,
+                    theme::PRIMARY,
                 );
                 let blended = (10..36).any(|y| {
                     (10..56).any(|x| {
                         let color = GetPixel(dc, x, y);
-                        color != theme::WHITE && color != theme::BLUE && color.0 != u32::MAX
+                        color != theme::BACKGROUND && color != theme::PRIMARY && color.0 != u32::MAX
                     })
                 });
                 assert!(
@@ -2257,7 +2303,7 @@ mod tests {
             assert_eq!(GetMenuItemID(languages, 1), LANGUAGE_EN as u32);
             assert_eq!(tray::label(LANGUAGE, false), "语言");
             assert_eq!(tray::label(LANGUAGE_ZH, false), "中文");
-            assert_eq!(tray::label(LANGUAGE_EN, false), "英文");
+            assert_eq!(tray::label(LANGUAGE_EN, false), "English");
 
             assert_eq!(GetMenuItemID(menu, 5), EXIT as u32);
             let mut menu_text = [0u16; 64];

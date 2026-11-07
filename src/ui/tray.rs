@@ -10,7 +10,7 @@ pub fn label(id: u16, paused: bool) -> &'static str {
         STARTUP => crate::i18n::text!("开机自启", "Run at startup"),
         LANGUAGE => crate::i18n::text!("语言", "Language"),
         LANGUAGE_ZH => crate::i18n::text!("中文", "Chinese"),
-        LANGUAGE_EN => crate::i18n::text!("英文", "English"),
+        LANGUAGE_EN => "English",
         EXIT => crate::i18n::text!("退出", "Exit"),
         _ => "",
     }
@@ -100,7 +100,7 @@ pub unsafe fn draw(state: &theme::PaintState, item: &DRAWITEMSTRUCT) {
     let dc = item.hDC;
     let p = |v| state.px(v);
     let mut rect = item.rcItem;
-    theme::fill(dc, &rect, theme::WHITE);
+    theme::fill(dc, &rect, theme::POPOVER);
     let selected = item.itemState.0 & ODS_SELECTED.0 != 0;
     if selected {
         let inset = RECT {
@@ -109,7 +109,7 @@ pub unsafe fn draw(state: &theme::PaintState, item: &DRAWITEMSTRUCT) {
             top: rect.top + p(3),
             bottom: rect.bottom - p(3),
         };
-        theme::rounded(dc, inset, p(10), COLORREF(0x00faf2e9), COLORREF(0x00faf2e9));
+        theme::rounded(dc, inset, p(10), theme::ACCENT, theme::ACCENT);
     }
     let id = item.itemID as u16;
     let glyph = match id {
@@ -132,7 +132,11 @@ pub unsafe fn draw(state: &theme::PaintState, item: &DRAWITEMSTRUCT) {
             ..rect
         },
         state.icons,
-        theme::INK,
+        if selected {
+            theme::ACCENT_FOREGROUND
+        } else {
+            theme::POPOVER_FOREGROUND
+        },
         DT_CENTER | DT_VCENTER | DT_SINGLELINE,
     );
     rect.left += p(44);
@@ -142,7 +146,11 @@ pub unsafe fn draw(state: &theme::PaintState, item: &DRAWITEMSTRUCT) {
         label(id, state.paused),
         rect,
         state.menu_font,
-        theme::INK,
+        if selected {
+            theme::ACCENT_FOREGROUND
+        } else {
+            theme::POPOVER_FOREGROUND
+        },
         DT_LEFT | DT_VCENTER | DT_SINGLELINE,
     );
 }
